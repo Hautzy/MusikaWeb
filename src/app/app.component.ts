@@ -26,5 +26,17 @@ export class AppComponent implements OnInit {
       console.log(model.inputs);
       console.log(model.outputs);
     });
+
+    console.log('dec');
+    console.log('Predictions:');
+    console.log(dec_model.predict(tf.randomNormal([2, 1, 64, 64])));
+
+    console.log('dec2');
+    console.log('Predictions:');
+    console.log(dec2_model.predict(tf.randomNormal([2, 1, 4, 64])));
+
+    console.log('gen_ema');
+    console.log('Predictions:');
+    console.log(gen_ema_model.predict(tf.randomNormal([2, 256, 128])));
   }
 }

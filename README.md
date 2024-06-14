@@ -24,13 +24,16 @@ gen_ema.save('models/gen_ema')
 !zip -r web_models.zip web_models
 ```
 
-### Run all models
+### Run all models (DONE)
 
 Try to run all three models.
 
 ### Write generation functions in typescript
 
 ```get_noise_interp_multi()``` and ```generate_waveform()```
+https://chatgpt.com/share/9612ed76-1137-492f-8a35-63a977ecd9d8
+
+The way to go here would be to rewrite every function and also write tests.
 
 other option:
 

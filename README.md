@@ -1,27 +1,46 @@
-# Untitled
+# MusikaWeb
 
-This project was generated with [Angular CLI](https://github.com/angular/angular-cli) version 18.0.4.
+## Resources
 
-## Development server
+* Colab notebook to re-load and convert models 
 
-Run `ng serve` for a dev server. Navigate to `http://localhost:4200/`. The application will automatically reload if you change any of the source files.
+## TODO List
 
-## Code scaffolding
+### Convert all models (DONE)
 
-Run `ng generate component component-name` to generate a new component. You can also use `ng generate directive|pipe|service|class|guard|interface|enum|module`.
+Convert all necessary models from ```get_networks()``` as SavedModel.
 
-## Build
+```python
+critic, gen, enc, dec, enc2, dec2, gen_ema, [opt_dec, opt_disc], switch
+= M.get_networks()
+dec.save('models/dec')
+dec2.save('models/dec2')
+gen_ema.save('models/gen_ema')
+```
 
-Run `ng build` to build the project. The build artifacts will be stored in the `dist/` directory.
+```bash
+!for path in models/*; do tensorflowjs_converter
+--input-format=tf_saved_model $path web$path; done
+!zip -r web_models.zip web_models
+```
 
-## Running unit tests
+### Run all models
 
-Run `ng test` to execute the unit tests via [Karma](https://karma-runner.github.io).
+Try to run all three models.
 
-## Running end-to-end tests
+### Write generation functions in typescript
 
-Run `ng e2e` to execute the end-to-end tests via a platform of your choice. To use this command, you need to first add a package that implements end-to-end testing capabilities.
+```get_noise_interp_multi()``` and ```generate_waveform()```
 
-## Further help
+other option:
 
-To get more help on the Angular CLI use `ng help` or go check out the [Angular CLI Overview and Command Reference](https://angular.dev/tools/cli) page.
+```python
+critic, gen, enc, dec, enc2, dec2, gen_ema, [opt_dec, opt_disc], switch
+= M.get_networks()
+inpf = tf.keras.layers.Input((M.args.latlen, M.args.latdepth * 2))
+allinone = tf.keras.Model(inpf, [U.generate_waveform(inpf, gen_ema, dec,
+dec2, batch_size=64)])
+allinone.save('models/allinone')
+```
+
+easy test would be to write ```U.generate_example_stereo()```.

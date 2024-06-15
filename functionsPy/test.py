@@ -43,9 +43,18 @@ class TestFunctions(unittest.TestCase):
             result_tensor = tf.constant(result_array)
             self.run_normal_test(result_tensor)
 
+    def test_linespace_interpolation_at_axis(self):
+        # Define start and end tensors
+        start_tensor = tf.constant([[0.0, 1.0], [2.0, 3.0]])  # Shape (2, 2)
+        end_tensor = tf.constant([[10.0, 11.0], [12.0, 13.0]])  # Shape (2, 2)
+        steps = 5
+        axis = -2  # Generate linspace along the second to last axis
+
+        # Calculate linspace with axis
+        result = tf.linspace(start_tensor, end_tensor, steps, axis=axis)
+        assert result.shape == (2, 5, 2)
+
     def test_get_noise_interp_multi(self):
-        start = tf.constant([[2, 2], [2, 2]])
-        end = tf.constant([[6, 6], [6, 6]])
-        #print(tf.linspace(start, end, 2 + 1, axis=-2))
         test = get_noise_interp_multi()
-        print()
+        print(test)
+        print(test.shape)

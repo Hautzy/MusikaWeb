@@ -1,5 +1,4 @@
 import tensorflow as tf
-from tensorflow.python.framework import random_seed
 
 '''
 args
@@ -37,14 +36,17 @@ def get_noise_interp_multi(fac=1, var=2.0):
 
     coordratio = coord_len // lat_len
 
+    noisels_len = range(3 + ((fac - 1) // coordratio))
     noisels = [
         tf.concat([truncated_normal([1, 64], var), noiseg], -1)
-        for i in range(3 + ((fac - 1) // coordratio))
+        for i in noisels_len
     ]
+
+    rls_len = range(len(noisels) - 1)
     rls = tf.concat(
         [
             tf.linspace(noisels[k], noisels[k + 1], coord_len + 1, axis=-2)[:, :-1, :]
-            for k in range(len(noisels) - 1)
+            for k in rls_len
         ],
         -2,
     )
@@ -56,3 +58,4 @@ def get_noise_interp_multi(fac=1, var=2.0):
     rls = tf.split(rls, rls.shape[-2] // lat_len, -2)
 
     return tf.concat(rls[:fac], 0)
+

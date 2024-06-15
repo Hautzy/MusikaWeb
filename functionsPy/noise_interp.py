@@ -24,18 +24,21 @@ def center_coordinate(
     return tf.reduce_mean(tf.stack([x, tf.roll(x, -1, -2)], 0), 0)[:, :-1, :]
 
 
-def truncated_normal(shape, bound=2.0, dtype=tf.float32):
-    seed1, seed2 = random_seed.get_seed(tf.random.uniform((), tf.int32.min, tf.int32.max, dtype=tf.int32))
-    return tf.random.stateless_parameterized_truncated_normal(shape, [seed1, seed2], 0.0, 1.0, -bound, bound)
+def truncated_normal(shape, bound=2.0):
+    seed = tf.random.uniform((), minval=0, maxval=tf.int32.max, dtype=tf.int32)
+    seeds = tf.random.experimental.stateless_split([seed, seed + 1], num=2)
+    tensor = tf.random.stateless_truncated_normal(shape, seed=seeds[0], mean=0.0, stddev=1.0)
+    clipped_tensor = tf.clip_by_value(tensor, clip_value_min=-bound, clip_value_max=bound)
+    return clipped_tensor
 
 
 def get_noise_interp_multi(fac=1, var=2.0):
-    noiseg = truncated_normal([1, coord_depth], var, dtype=tf.float32)
+    noiseg = truncated_normal([1, coord_depth], var)
 
     coordratio = coord_len // lat_len
 
     noisels = [
-        tf.concat([truncated_normal([1, 64], var, dtype=tf.float32), noiseg], -1)
+        tf.concat([truncated_normal([1, 64], var), noiseg], -1)
         for i in range(3 + ((fac - 1) // coordratio))
     ]
     rls = tf.concat(
@@ -53,6 +56,3 @@ def get_noise_interp_multi(fac=1, var=2.0):
     rls = tf.split(rls, rls.shape[-2] // lat_len, -2)
 
     return tf.concat(rls[:fac], 0)
-
-
-

@@ -25,3 +25,19 @@ export function centerCoordinate(x: tf.Tensor): tf.Tensor {
     return mean.slice([0, 0, 0], [-1, shape[shape.length - 2] - 1, shape[shape.length - 1]]);
 
 }
+
+export function truncatedNormal(shape: number[], bound: number = 2.0): tf.Tensor {
+    const seed = Math.floor(Math.random() * (2 ** 31));
+    const mean = 0.0;
+    const stddev = 1.0;
+
+    // Generate the truncated normal distribution tensor
+    const tensor = tf.tidy(() => {
+        let tensor = tf.randomNormal(shape, mean, stddev, 'float32', seed);
+        tensor = tensor.where(tensor.greaterEqual(tf.scalar(-bound)), tf.scalar(-bound));
+        tensor = tensor.where(tensor.lessEqual(tf.scalar(bound)), tf.scalar(bound));
+        return tensor;
+    });
+
+    return tensor;
+}

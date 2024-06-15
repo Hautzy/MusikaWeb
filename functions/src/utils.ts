@@ -41,3 +41,38 @@ export function truncatedNormal(shape: number[], bound: number = 2.0): tf.Tensor
 
     return tensor;
 }
+
+
+// TODO: test
+export function interpolate(start: tf.Tensor, end: tf.Tensor, steps: number): tf.Tensor {
+    const alpha = tf.linspace(0, 1, steps);
+    const expandedAlpha = tf.expandDims(alpha, -1); // Expand dimensions to match the tensors' shapes
+    return start.mul(tf.scalar(1).sub(expandedAlpha)).add(end.mul(expandedAlpha));
+}
+
+// TODO: test
+export function getNoiseInterpMulti(fac: number = 1, variance: number = 2.0): tf.Tensor {
+    const noiseg = truncatedNormal([1, COOR_DEPTH], variance);
+
+    const coordRatio = Math.floor(COOR_LEN / LAT_LEN);
+
+    const noisels = Array.from({ length: 3 + Math.floor((fac - 1) / coordRatio) }, () =>
+        tf.concat([truncatedNormal([1, 64], variance), noiseg], -1)
+    );
+
+    const rlsList = [];
+    for (let k = 0; k < noisels.length - 1; k++) {
+        const interpolated = interpolate(noisels[k], noisels[k + 1], COOR_LEN + 1).slice([0, 0, 0], [-1, COOR_LEN, -1]);
+        rlsList.push(interpolated);
+    }
+
+    let rls = tf.concat(rlsList, -2);
+
+    rls = centerCoordinate(rls);
+    rls = rls.slice([0, Math.floor(LAT_LEN / 4)], [-1, -1, -1]);
+    rls = rls.slice([0, 0, 0], [-1, Math.floor(rls.shape[1]! / LAT_LEN) * LAT_LEN, -1]);
+
+    const splitRls = tf.split(rls, rls.shape[1]! / LAT_LEN, 1);
+
+    return tf.concat(splitRls.slice(0, fac), 0);
+}

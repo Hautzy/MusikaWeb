@@ -4,7 +4,7 @@ import numpy as np
 import tensorflow as tf
 
 from scipy.stats import shapiro
-from noise_interp import center_coordinate, truncated_normal
+from noise_interp import center_coordinate, truncated_normal, get_noise_interp_multi
 
 TEST_FOLDER = 'test_input'
 
@@ -43,4 +43,9 @@ class TestFunctions(unittest.TestCase):
             result_tensor = tf.constant(result_array)
             self.run_normal_test(result_tensor)
 
-
+    def test_get_noise_interp_multi(self):
+        start = tf.constant([[2, 2], [2, 2]])
+        end = tf.constant([[6, 6], [6, 6]])
+        #print(tf.linspace(start, end, 2 + 1, axis=-2))
+        test = get_noise_interp_multi()
+        print()

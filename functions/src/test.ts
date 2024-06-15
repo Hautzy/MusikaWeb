@@ -1,6 +1,6 @@
 import * as tf from '@tensorflow/tfjs';
 import { writeFileSync } from 'fs';
-import {centerCoordinate, truncatedNormal} from "./utils";
+import {centerCoordinate, truncatedNormal, interpolate, getNoiseInterpMulti} from "./utils";
 
 
 export function testCenterCoordinate(): void {
@@ -22,5 +22,13 @@ export function testTruncatedNormal(): void {
     });
 }
 
-testCenterCoordinate();
-testTruncatedNormal();
+export function testInterpolate(): void {
+    const start = tf.tensor2d([[2, 2], [2, 2]]);
+    const end = tf.tensor2d([[6, 6], [6, 6]]);
+    //console.log(interpolate(start, end, 3));
+    console.log(getNoiseInterpMulti());
+}
+
+//testCenterCoordinate();
+//testTruncatedNormal();
+testInterpolate()

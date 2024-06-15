@@ -1,8 +1,5 @@
 import * as tf from '@tensorflow/tfjs';
-
-export const COOR_DEPTH = 64;
-export const LAT_LEN = 128;
-export const COOR_LEN = Math.floor(LAT_LEN / 2) * 3;
+import {COOR_DEPTH, COOR_LEN, LAT_LEN} from "./constant";
 
 export function centerCoordinate(x: tf.Tensor): tf.Tensor {
     const shape = x.shape;

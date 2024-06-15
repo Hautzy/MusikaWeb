@@ -30,8 +30,17 @@ Try to run all three models.
 
 ### Write generation functions in typescript
 
-```get_noise_interp_multi()``` and ```generate_waveform()```
-https://chatgpt.com/share/9612ed76-1137-492f-8a35-63a977ecd9d8
+1. ```get_noise_interp_multi()``` (DONE)
+2. ```generate_waveform()```
+
+For ```python generate_waveform()``` we have to implement the following methods:
+
+```python
+distribute_gen(...)
+distribute_dec2(...)
+distribute_dec(...)
+conc_tog_specphase(...)
+```
 
 The way to go here would be to rewrite every function and also write tests.
 
@@ -46,4 +55,15 @@ dec2, batch_size=64)])
 allinone.save('models/allinone')
 ```
 
+### Test to generate stereo audio
 easy test would be to write ```U.generate_example_stereo()```.
+
+Here we have to implement the following methods into tensorflowjs:
+
+```python
+distribute_dec2(...)
+distribute_dec(...)
+conc_tog_specphase(...)
+denormalize(...)
+db2power(...)
+```

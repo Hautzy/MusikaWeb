@@ -1,6 +1,6 @@
 import * as tf from '@tensorflow/tfjs';
 import { writeFileSync } from 'fs';
-import {centerCoordinate, generateLinspace, getNoiseInterpMulti, truncatedNormal} from "./utils";
+import {centerCoordinate, generateLinspace, getNoiseInterpMulti, truncatedNormal} from "./noiseInterp";
 
 
 function testCenterCoordinate(): void {

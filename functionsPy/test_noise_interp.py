@@ -9,7 +9,7 @@ from noise_interp import center_coordinate, truncated_normal, get_noise_interp_m
 TEST_FOLDER = 'test_input'
 
 
-class TestFunctions(unittest.TestCase):
+class TestNoiseInterp(unittest.TestCase):
     def test_center_coordinate(self):
         test_tensor = tf.constant([[[1, 2], [3, 4], [5, 6]], [[7, 8], [9, 10], [11, 12]]])
         result = center_coordinate(test_tensor)

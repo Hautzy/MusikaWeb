@@ -1,5 +1,7 @@
 import tensorflow as tf
 
+from constant import coord_depth, lat_len, coord_len
+
 '''
 args
 
@@ -11,10 +13,6 @@ coordlen & latlen
         args.latlen = 256
     args.coordlen = (args.latlen // 2) * 3
 '''
-
-coord_depth = 64
-lat_len = 128
-coord_len = (lat_len // 2) * 3
 
 
 def center_coordinate(
@@ -58,4 +56,3 @@ def get_noise_interp_multi(fac=1, var=2.0):
     rls = tf.split(rls, rls.shape[-2] // lat_len, -2)
 
     return tf.concat(rls[:fac], 0)
-

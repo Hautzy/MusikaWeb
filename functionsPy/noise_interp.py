@@ -21,6 +21,16 @@ def center_coordinate(
     return tf.reduce_mean(tf.stack([x, tf.roll(x, -1, -2)], 0), 0)[:, :-1, :]
 
 
+def center_coordinate2(x):
+    # Exclude the last element along the second dimension
+    x_excluding_last = x[:, :-1, :]
+
+    # Exclude the first element along the second dimension
+    x_excluding_first = x[:, 1:, :]
+
+    # Stack and reduce mean along the new dimension
+    return tf.reduce_mean(tf.stack([x_excluding_last, x_excluding_first], 0), 0)
+
 def truncated_normal(shape, bound=2.0):
     seed = tf.random.uniform((), minval=0, maxval=tf.int32.max, dtype=tf.int32)
     seeds = tf.random.experimental.stateless_split([seed, seed + 1], num=2)

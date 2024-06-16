@@ -4,7 +4,7 @@ import numpy as np
 import tensorflow as tf
 
 from scipy.stats import shapiro
-from noise_interp import center_coordinate, truncated_normal, get_noise_interp_multi
+from noise_interp import center_coordinate, truncated_normal, get_noise_interp_multi, center_coordinate2
 
 TEST_FOLDER = 'test_input'
 
@@ -13,6 +13,10 @@ class TestNoiseInterp(unittest.TestCase):
     def test_center_coordinate(self):
         test_tensor = tf.constant([[[1, 2], [3, 4], [5, 6]], [[7, 8], [9, 10], [11, 12]]])
         result = center_coordinate(test_tensor)
+        res2 = center_coordinate2(test_tensor)
+
+        print(result)
+        print(res2)
 
         with open(f'{TEST_FOLDER}/testCenterCoordinate.json', 'r') as file:
             result_array = json.load(file)

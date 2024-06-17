@@ -19,6 +19,21 @@ export class AppComponent implements OnInit {
     //await this.runInferenceStereo();
   }
 
+  async displaySpec(input: tf.Tensor): Promise<void> {
+    const model = await tf.loadGraphModel('./assets/models/wv2spec_model_web/model.json');
+    const res = model.predict(input) as tf.Tensor;
+    console.log('res', res);
+
+    const resTransposed = tf.transpose(res, [1, 0]);
+    console.log('resTransposed', resTransposed);
+
+    const flipped = tf.reverse(resTransposed, -2) as tf.Tensor2D;
+    console.log('flipped', flipped);
+
+    // Display the RGB image
+    await tf.browser.toPixels(flipped, document.getElementById('canvas') as HTMLCanvasElement);
+  }
+
   async testModels(): Promise<void> {
     console.log('Load dec_model');
     const dec_model = await tf.loadGraphModel('./assets/models/dec_model_web/model.json');
@@ -162,6 +177,7 @@ export class AppComponent implements OnInit {
     const clippedTensor = squeezedTensor.clipByValue(-1.0, 1.0);  // Shape: [4096, 2]
     console.log('clippedTensor:', clippedTensor);
     await this.visualizeWaveform(result);
+    await this.displaySpec(clippedTensor);
   }
 
   async runInferenceStereo(): Promise<void> {

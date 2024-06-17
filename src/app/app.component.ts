@@ -4,6 +4,7 @@ import * as tf from '@tensorflow/tfjs';
 import * as tfvis from '@tensorflow/tfjs-vis';
 import {zip} from "rxjs";
 import {HOP} from "../../functions/src/constant";
+import {getNoiseInterpMulti} from "./noiseInterp";
 
 @Component({
   selector: 'app-root',
@@ -14,7 +15,8 @@ import {HOP} from "../../functions/src/constant";
 })
 export class AppComponent implements OnInit {
   async ngOnInit(): Promise<void> {
-    await this.runInferenceStereo();
+    this.runInferenceWaveform();
+    //await this.runInferenceStereo();
   }
 
   async testModels(): Promise<void> {
@@ -82,42 +84,42 @@ export class AppComponent implements OnInit {
 
     // Perform element-wise operations to get complex spectrum
     const expP = tf.complex(tf.cos(P), tf.sin(P));
-    console.log('expP:', expP);
+    // console.log('expP:', expP);
     const SP = tf.mul(tf.complex(S, tf.zerosLike(S)), expP);
-    console.log('SP:', SP);
+    // console.log('SP:', SP);
 
     // Perform inverse FFT
     const wvFrames = tf.irfft(SP);
-    console.log('wvFrames:', wvFrames);
+    // console.log('wvFrames:', wvFrames);
 
     // Apply the window function
     const window = this.hannWindow(fftLength);
-    console.log('window:', window);
+    // console.log('window:', window);
 
     // Reshape and tile the window to match the dimensions of wvFrames
     const reshapedWindow = window.reshape([fftLength, 1, 1]);
-    console.log('reshapedWindow:', reshapedWindow);
+    // console.log('reshapedWindow:', reshapedWindow);
     const tiledWindow = reshapedWindow.tile([Math.ceil(wvFrames.shape[0] / fftLength), wvFrames.shape[1]!, wvFrames.shape[2]!]);
-    console.log('tiledWindow:', tiledWindow);
+    // console.log('tiledWindow:', tiledWindow);
     // Slice the tiled window to exactly match wvFrames shape
     const windowedWvFrames = wvFrames.mul(tiledWindow.slice([0, 0, 0], wvFrames.shape));
-    console.log('windowedWvFrames:', windowedWvFrames);
+    // console.log('windowedWvFrames:', windowedWvFrames);
 
     // Overlap and add (OLA) to reconstruct the signal
     const frameStep = hop;  // Hop size
     const frameLength = fftLength;  // Frame length
-    console.log('frameStep:', frameStep);
+    // console.log('frameStep:', frameStep);
     const numFrames = Math.floor((wvFrames.shape[0] - fftLength) / frameStep) + 1;  // Number of frames
-    console.log('numFrames:', numFrames);
+    // console.log('numFrames:', numFrames);
     const outputLength = numFrames * frameStep + fftLength - frameStep;  // Length of the reconstructed signal
-    console.log('outputLength:', outputLength);
+    // console.log('outputLength:', outputLength);
     const reconstructed = tf.buffer([outputLength, 2], 'float32');  // Shape: [1049344, 2]
-    console.log('reconstructed:', reconstructed);
+    // console.log('reconstructed:', reconstructed);
 
     for (let i = 0; i < numFrames; i++) {
       const start = i * frameStep;
       const frame = windowedWvFrames.slice([i * frameStep], [frameLength]);  // Shape: [1024, 513, 2]
-      console.log('frame:', frame);
+      // console.log('frame:', frame);
       // Add the frame to the reconstructed signal
       const frameArray = frame.arraySync() as number[][][];  // Convert to array for setting values
       for (let j = 0; j < frameLength; j++) {
@@ -128,8 +130,38 @@ export class AppComponent implements OnInit {
       }
     }
 
-    console.log('reconstructed:', reconstructed);
+    // console.log('reconstructed:', reconstructed);
     return reconstructed.toTensor();
+  }
+
+  async runInferenceWaveform(): Promise<void> {
+    const model = await tf.loadGraphModel('./assets/models/waveform_model_web/model.json');
+    const seconds = 120
+    const fac = Math.ceil(seconds / 23) + 1
+    let input = getNoiseInterpMulti(fac);
+    console.log('noise input', input);
+
+    const predictions = model.execute(input) as tf.Tensor[];
+    console.log('Predictions:', predictions);
+
+    const S = predictions[0];
+    const P = predictions[1];
+
+    console.log('S:', S);
+    console.log('P:', P);
+
+
+    const result = await this.computeISTFT(S, P);
+    console.log('result:', result);
+
+    // Squeeze the tensor
+    const squeezedTensor = result.squeeze();  // Shape: [4096, 2] (no change in this case)
+    console.log('squeezedTensor:', squeezedTensor);
+
+    // Clip the values to [-1.0, 1.0]
+    const clippedTensor = squeezedTensor.clipByValue(-1.0, 1.0);  // Shape: [4096, 2]
+    console.log('clippedTensor:', clippedTensor);
+    await this.visualizeWaveform(result);
   }
 
   async runInferenceStereo(): Promise<void> {

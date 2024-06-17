@@ -39,6 +39,44 @@ def truncated_normal(shape, bound=2.0):
     return clipped_tensor
 
 
+def get_noise_interp():
+    noiseg = tf.random.normal([1, 64], dtype=tf.float32)
+
+    noisel = tf.concat([tf.random.normal([1, coord_depth], dtype=tf.float32), noiseg], -1)
+    noisec = tf.concat([tf.random.normal([1, coord_depth], dtype=tf.float32), noiseg], -1)
+    noiser = tf.concat([tf.random.normal([1, coord_depth], dtype=tf.float32), noiseg], -1)
+
+    rl = tf.linspace(noisel, noisec, coord_len + 1, axis=-2)[:, :-1, :]
+    rr = tf.linspace(noisec, noiser, coord_len + 1, axis=-2)
+
+    noisetot = tf.concat([rl, rr], -2)
+    noisetot = center_coordinate(noisetot)
+    return crop_coordinate(noisetot)
+
+def crop_coordinate(
+        x
+):  # randomly crops a conditioning sequence such that the anchor vector is at center of generator receptive field (maximum context is provided to the generator)
+    fac = tf.random.uniform((), 0, coord_len // (lat_len // 2), dtype=tf.int32)
+
+    def crop_case(offset):
+        return tf.reshape(
+            x[
+            :,
+            (lat_len // 4) + offset * (lat_len // 2): (lat_len // 4) + offset * (
+                    lat_len // 2) + lat_len,
+            :,
+            ],
+            [-1, lat_len, x.shape[-1]]
+        )
+
+    case_0 = lambda: crop_case(0)
+    case_1 = lambda: crop_case(1)
+    case_2 = lambda: crop_case(2)
+
+    result = tf.cond(fac == 0, case_0, lambda: tf.cond(fac == 1, case_1, case_2))
+    return result
+
+
 def get_noise_interp_multi(fac=1, var=2.0):
     noiseg = truncated_normal([1, coord_depth], var)
 

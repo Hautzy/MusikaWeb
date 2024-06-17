@@ -4,7 +4,8 @@ import numpy as np
 import tensorflow as tf
 
 from scipy.stats import shapiro
-from noise_interp import center_coordinate, truncated_normal, get_noise_interp_multi, center_coordinate2
+from noise_interp import center_coordinate, truncated_normal, get_noise_interp_multi, center_coordinate2, \
+    get_noise_interp
 
 TEST_FOLDER = 'test_input'
 
@@ -59,6 +60,13 @@ class TestNoiseInterp(unittest.TestCase):
         assert result.shape == (2, 5, 2)
 
     def test_get_noise_interp_multi(self):
-        test = get_noise_interp_multi()
-        print(test)
+        seconds = 120
+        fac = (seconds // 23) + 1
+        test = get_noise_interp_multi(fac)
         print(test.shape)
+
+        '''
+        test1 = get_noise_interp()
+        print(test1)
+        print(test1.shape)
+        '''

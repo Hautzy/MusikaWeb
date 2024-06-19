@@ -1,15 +1,15 @@
 import {Component, OnInit} from '@angular/core';
-import { RouterOutlet } from '@angular/router';
 import * as tf from '@tensorflow/tfjs';
 import * as tfvis from '@tensorflow/tfjs-vis';
 import {zip} from "rxjs";
 import {HOP} from "../../functions/src/constant";
 import {getNoiseInterpMulti} from "./noiseInterp";
+import {HttpClient, HttpClientModule, HttpHeaders} from '@angular/common/http';
 
 @Component({
   selector: 'app-root',
   standalone: true,
-  imports: [RouterOutlet],
+  imports: [HttpClientModule],
   templateUrl: './app.component.html',
   styleUrl: './app.component.css'
 })
@@ -17,6 +17,9 @@ export class AppComponent implements OnInit {
   async ngOnInit(): Promise<void> {
     this.runInferenceWaveform();
     //await this.runInferenceStereo();
+  }
+
+  constructor(private http: HttpClient) {
   }
 
   async displaySpec(input: tf.Tensor): Promise<void> {
@@ -149,6 +152,17 @@ export class AppComponent implements OnInit {
     return reconstructed.toTensor();
   }
 
+  async writeTensorToFile(tensor: tf.Tensor, filePath: string): Promise<void> {
+    const array = await tensor.array(); // Asynchronously convert tensor to array
+    const jsonData = JSON.stringify(array);
+    const headers = new HttpHeaders().set('Content-Type', 'application/json');
+    // Use Angular HttpClient to send the data to a backend server for file saving
+    this.http.post(filePath, jsonData, { headers, responseType: 'text' }).subscribe(
+        response => console.log('Data saved:', response),
+        error => console.error('Error:', error)
+    );
+  }
+
   async runInferenceWaveform(): Promise<void> {
     const model = await tf.loadGraphModel('./assets/models/waveform_model_web/model.json');
     const seconds = 120
@@ -169,6 +183,9 @@ export class AppComponent implements OnInit {
     const result = await this.computeISTFT(S, P);
     console.log('result:', result);
 
+    this.writeTensorToFile(result, 'http://localhost:5000/save-tensor');
+
+    /*
     // Squeeze the tensor
     const squeezedTensor = result.squeeze();  // Shape: [4096, 2] (no change in this case)
     console.log('squeezedTensor:', squeezedTensor);
@@ -178,6 +195,7 @@ export class AppComponent implements OnInit {
     console.log('clippedTensor:', clippedTensor);
     await this.visualizeWaveform(result);
     await this.displaySpec(clippedTensor);
+    */
   }
 
   async runInferenceStereo(): Promise<void> {

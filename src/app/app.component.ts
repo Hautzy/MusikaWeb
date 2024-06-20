@@ -15,8 +15,13 @@ import {HttpClient, HttpClientModule, HttpHeaders} from '@angular/common/http';
 })
 export class AppComponent implements OnInit {
   async ngOnInit(): Promise<void> {
-    this.runInferenceWaveform();
+    //this.runInferenceWaveform();
     //await this.runInferenceStereo();
+    const S = tf.randomNormal([2, 100, 129]);
+    const P = tf.randomNormal([2, 100, 129]);
+    const model = await tf.loadGraphModel('./assets/models/inverse_stft_model_web/model.json');
+    const res = model.predict([S, P]) as tf.Tensor;
+    console.log('res', res);
   }
 
   constructor(private http: HttpClient) {

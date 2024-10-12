@@ -1,174 +1,98 @@
-import {Component, OnInit} from '@angular/core';
+import {Component, ElementRef, OnDestroy, ViewChild} from '@angular/core';
 import * as tf from '@tensorflow/tfjs';
-import * as tfvis from '@tensorflow/tfjs-vis';
-import {zip} from "rxjs";
-import {HOP} from "../../functions/src/constant";
-import {getNoiseInterpMulti} from "./noiseInterp";
-import {HttpClient, HttpClientModule, HttpHeaders} from '@angular/common/http';
+import WaveSurfer from 'wavesurfer.js';
+import SpectrogramPlugin from 'wavesurfer.js/dist/plugins/spectrogram.js';
+
 
 @Component({
-  selector: 'app-root',
-  standalone: true,
-  imports: [HttpClientModule],
-  templateUrl: './app.component.html',
-  styleUrl: './app.component.css'
+    selector: 'app-root',
+    standalone: true,
+    templateUrl: './app.component.html',
+    styleUrl: './app.component.css'
 })
-export class AppComponent implements OnInit {
-  async ngOnInit(): Promise<void> {
-    //this.runInferenceWaveform();
-    //await this.runInferenceStereo();
-    const S = tf.randomNormal([2, 100, 129]);
-    const P = tf.randomNormal([2, 100, 129]);
-    const model = await tf.loadGraphModel('./assets/models/inverse_stft_model_web/model.json');
-    const res = model.predict([S, P]) as tf.Tensor;
-    console.log('res', res);
-  }
+export class AppComponent implements OnDestroy{
 
-  constructor(private http: HttpClient) {
-  }
+    @ViewChild('waveform') waveformDiv!: ElementRef;
+    @ViewChild('spectrogram') spectrogramDiv!: ElementRef;
+    @ViewChild('audioPlayer') audioPlayer!: ElementRef<HTMLAudioElement>;
 
-  async displaySpec(input: tf.Tensor): Promise<void> {
-    const model = await tf.loadGraphModel('./assets/models/wv2spec_model_web/model.json');
-    const res = model.predict(input) as tf.Tensor;
-    console.log('res', res);
+    tensorData: number[][] = [];
+    sampleRate: number = 44100; // Default to 44.1 kHz sample rate for audio
 
-    const resTransposed = tf.transpose(res, [1, 0]);
-    console.log('resTransposed', resTransposed);
+    private waveSurfer!: WaveSurfer;
+    private wavBlob!: Blob;
+    private audioBuffer!: AudioBuffer;
 
-    const flipped = tf.reverse(resTransposed, -2) as tf.Tensor2D;
-    console.log('flipped', flipped);
+    zoomLevel: number = 20; // Initial zoom level
+    isPlaying: boolean = false;
 
-    // Display the RGB image
-    await tf.browser.toPixels(flipped, document.getElementById('canvas') as HTMLCanvasElement);
-  }
 
-  async testModels(): Promise<void> {
-    console.log('Load dec_model');
-    const dec_model = await tf.loadGraphModel('./assets/models/dec_model_web/model.json');
-    console.log('Load dec2_model');
-    const dec2_model = await tf.loadGraphModel('./assets/models/dec2_model_web/model.json');
-    console.log('Load gen_ema_model');
-    const gen_ema_model = await tf.loadGraphModel('./assets/models/gen_ema_model_web/model.json');
-    console.log('Load stereo_model');
-    const stereo_model = await tf.loadGraphModel('./assets/models/stereo_model_web/model.json');
-
-    const model_names = ['dec_model', 'dec2_model', 'gen_ema_model', 'stereo_model'];
-    const models = [dec_model, dec2_model, gen_ema_model, stereo_model];
-
-    console.log('Models loaded');
-    await zip(model_names, models).forEach(([name, model]) => {
-      console.log(name);
-      console.log('Inputs and outputs:');
-      console.log(model.inputs);
-      console.log(model.outputs);
-    });
-
-    console.log('dec');
-    console.log('Predictions:');
-    console.log(dec_model.predict(tf.randomNormal([2, 1, 64, 64])));
-
-    console.log('dec2');
-    console.log('Predictions:');
-    console.log(dec2_model.predict(tf.randomNormal([2, 1, 4, 64])));
-
-    console.log('gen_ema');
-    console.log('Predictions:');
-    console.log(gen_ema_model.predict(tf.randomNormal([2, 256, 128])));
-
-    console.log('stereo');
-    console.log('Predictions:');
-    const inputTensor = tf.zeros([1, 1]);  // Change the shape as needed
-    const predictions = await stereo_model.executeAsync(inputTensor) as tf.Tensor[];
-
-    // Type assertions to access S and P
-    const S: tf.Tensor = predictions[0];
-    const P: tf.Tensor = predictions[1];
-
-    // Log the tensors
-    console.log('S:', S);
-    S.print();
-    console.log('P:', P);
-    P.print();
-  }
-
-  hannWindow(length: number): tf.Tensor {
-    const window = [];
-    for (let i = 0; i < length; i++) {
-      window.push(0.5 * (1 - Math.cos((2 * Math.PI * i) / (length - 1))));
-    }
-    return tf.tensor(window);
-  }
-
-  // Function to compute inverse short-time Fourier transform (ISTFT)
-  async computeISTFT(S: tf.Tensor, P: tf.Tensor) {
-    // Convert S and P to tensors
-    const fftLength = 4 * HOP;
-    const hop = HOP;
-
-    // Perform element-wise operations to get complex spectrum
-    const expP = tf.complex(tf.cos(P), tf.sin(P));
-    // console.log('expP:', expP);
-    const SP = tf.mul(tf.complex(S, tf.zerosLike(S)), expP);
-    // console.log('SP:', SP);
-
-    // Perform inverse FFT
-    const wvFrames = tf.irfft(SP);
-    // console.log('wvFrames:', wvFrames);
-
-    // Apply the window function
-    const window = this.hannWindow(fftLength);
-    // console.log('window:', window);
-
-    // Reshape and tile the window to match the dimensions of wvFrames
-    const reshapedWindow = window.reshape([fftLength, 1, 1]);
-    // console.log('reshapedWindow:', reshapedWindow);
-    const tiledWindow = reshapedWindow.tile([Math.ceil(wvFrames.shape[0] / fftLength), wvFrames.shape[1]!, wvFrames.shape[2]!]);
-    // console.log('tiledWindow:', tiledWindow);
-    // Slice the tiled window to exactly match wvFrames shape
-    const windowedWvFrames = wvFrames.mul(tiledWindow.slice([0, 0, 0], wvFrames.shape));
-    // console.log('windowedWvFrames:', windowedWvFrames);
-
-    // Overlap and add (OLA) to reconstruct the signal
-    const frameStep = hop;  // Hop size
-    const frameLength = fftLength;  // Frame length
-    // console.log('frameStep:', frameStep);
-    const numFrames = Math.floor((wvFrames.shape[0] - fftLength) / frameStep) + 1;  // Number of frames
-    // console.log('numFrames:', numFrames);
-    const outputLength = numFrames * frameStep + fftLength - frameStep;  // Length of the reconstructed signal
-    // console.log('outputLength:', outputLength);
-    const reconstructed = tf.buffer([outputLength, 2], 'float32');  // Shape: [1049344, 2]
-    // console.log('reconstructed:', reconstructed);
-
-    for (let i = 0; i < numFrames; i++) {
-      const start = i * frameStep;
-      const frame = windowedWvFrames.slice([i * frameStep], [frameLength]);  // Shape: [1024, 513, 2]
-      // console.log('frame:', frame);
-      // Add the frame to the reconstructed signal
-      const frameArray = frame.arraySync() as number[][][];  // Convert to array for setting values
-      for (let j = 0; j < frameLength; j++) {
-        for (let k = 0; k < 2; k++) {  // Loop over the channels
-          const currentValue = reconstructed.get(start + j, k) as number;  // Get current value for channel
-          reconstructed.set(currentValue + frameArray[j][0][k], start + j, k);  // Add value to reconstructed signal for channel
+    ngOnDestroy() {
+        if (this.waveSurfer) {
+            this.waveSurfer.destroy();
         }
-      }
     }
 
-    // console.log('reconstructed:', reconstructed);
-    return reconstructed.toTensor();
-  }
+    async startStereo(): Promise<void> {
+        const model = await tf.loadGraphModel('./assets/models/stereo_model_web/model.json');
+        const inputTensor = tf.zeros([1, 1]);  // Generate or change input as needed
+        const predictions = await model.executeAsync(inputTensor) as tf.Tensor;
+        console.log('res', predictions.shape);
 
-  async writeTensorToFile(tensor: tf.Tensor, filePath: string): Promise<void> {
-    const array = await tensor.array(); // Asynchronously convert tensor to array
-    const jsonData = JSON.stringify(array);
-    const headers = new HttpHeaders().set('Content-Type', 'application/json');
-    // Use Angular HttpClient to send the data to a backend server for file saving
-    this.http.post(filePath, jsonData, { headers, responseType: 'text' }).subscribe(
-        response => console.log('Data saved:', response),
-        error => console.error('Error:', error)
-    );
-  }
+        // Store the tensor data for WAV creation
+        this.tensorData = await predictions.array() as number[][];
 
-  async runInferenceWaveform(): Promise<void> {
+        // Convert the tensor to an audio Blob
+        this.wavBlob = await this.tensorToAudioBlob(predictions, this.sampleRate);
+
+        // Create a Blob URL
+        const blobUrl = URL.createObjectURL(this.wavBlob);
+
+        // Initialize WaveSurfer.js
+        if (this.waveSurfer) {
+            this.waveSurfer.destroy();
+        }
+        this.waveSurfer = WaveSurfer.create({
+            container: this.waveformDiv.nativeElement,
+            waveColor: 'violet',
+            progressColor: 'purple',
+            normalize: true,
+            height: 200,
+            minPxPerSec: this.zoomLevel, // Controls zoom level and enables scrolling
+            autoCenter: true,            // Auto-centers the waveform during playback
+            plugins: [
+                SpectrogramPlugin.create({
+                    container: this.spectrogramDiv.nativeElement,
+                    labels: true,
+                }),
+            ],
+        });
+
+
+        // Load the audio Blob URL into WaveSurfer
+        this.waveSurfer.load(blobUrl);
+
+        // Update playback state
+        this.waveSurfer.on('play', () => {
+            this.isPlaying = true;
+        });
+
+        this.waveSurfer.on('pause', () => {
+            this.isPlaying = false;
+        });
+
+        this.waveSurfer.on('finish', () => {
+            this.isPlaying = false;
+            this.waveSurfer.seekTo(0); // Reset to start
+        });
+
+        // Optional: Play the audio using the native audio element
+        this.playWavInBrowser();
+        console.log('finished');
+    }
+
+    /*
+    * async runInferenceWaveform(): Promise<void> {
     const model = await tf.loadGraphModel('./assets/models/waveform_model_web/model.json');
     const seconds = 120
     const fac = Math.ceil(seconds / 23) + 1
@@ -188,9 +112,6 @@ export class AppComponent implements OnInit {
     const result = await this.computeISTFT(S, P);
     console.log('result:', result);
 
-    this.writeTensorToFile(result, 'http://localhost:5000/save-tensor');
-
-    /*
     // Squeeze the tensor
     const squeezedTensor = result.squeeze();  // Shape: [4096, 2] (no change in this case)
     console.log('squeezedTensor:', squeezedTensor);
@@ -199,66 +120,145 @@ export class AppComponent implements OnInit {
     const clippedTensor = squeezedTensor.clipByValue(-1.0, 1.0);  // Shape: [4096, 2]
     console.log('clippedTensor:', clippedTensor);
     await this.visualizeWaveform(result);
-    await this.displaySpec(clippedTensor);
-    */
   }
+    * */
 
-  async runInferenceStereo(): Promise<void> {
-    const stereo_model = await tf.loadGraphModel('./assets/models/stereo_model_web/model.json');
-    const inputTensor = tf.zeros([1, 1]);  // Change the shape as needed
-    const predictions = await stereo_model.executeAsync(inputTensor) as tf.Tensor[];
-
-    const S = predictions[0];
-    const P = predictions[1];
-
-    console.log('S:', S);
-    console.log('P:', P);
-
-    const result = await this.computeISTFT(S, P);
-    await this.visualizeWaveform(result);
-  }
-
-  async visualizeWaveform(reconstructed: tf.Tensor) {
-    // Convert the tensor to a regular array
-    const reconstructedArray: number[][] = await reconstructed.array() as number[][];
-
-    // Extract the left and right channels
-    const leftChannel = reconstructedArray.map(sample => sample[0]);
-    const rightChannel = reconstructedArray.map(sample => sample[1]);
-
-    // Prepare the data for tfvis
-    const leftChannelData = leftChannel.map((value, index) => ({
-      x: index,
-      y: value
-    }));
-
-    const rightChannelData = rightChannel.map((value, index) => ({
-      x: index,
-      y: value
-    }));
-
-    // Visualize the left channel
-    tfvis.render.linechart(
-        { name: 'Left Channel Waveform', tab: 'Charts' },
-        { values: [leftChannelData], series: ['Left Channel'] },
-        {
-          xLabel: 'Sample',
-          yLabel: 'Amplitude',
-          width: 800,
-          height: 400,
+    playPause() {
+        if (this.waveSurfer) {
+            this.waveSurfer.playPause();
+            // isPlaying state will be updated via event listeners
         }
-    );
+    }
 
-    // Visualize the right channel
-    tfvis.render.linechart(
-        { name: 'Right Channel Waveform', tab: 'Charts' },
-        { values: [rightChannelData], series: ['Right Channel'] },
-        {
-          xLabel: 'Sample',
-          yLabel: 'Amplitude',
-          width: 800,
-          height: 400,
+    stop() {
+        if (this.waveSurfer) {
+            this.waveSurfer.stop();
+            this.isPlaying = false;
         }
-    );
-  }
+    }
+
+    playWavInBrowser(): void {
+        if (!this.wavBlob) {
+            console.error('Audio Blob is not available.');
+            return;
+        }
+        const url = window.URL.createObjectURL(this.wavBlob);
+
+        // Set the audio player's source to the generated WAV file
+        const audioElement = this.audioPlayer.nativeElement;
+        audioElement.src = url;
+        audioElement.load();
+    }
+
+    downloadTensorAsJson() {
+        const jsonData = JSON.stringify(this.tensorData);
+        const blob = new Blob([jsonData], { type: 'application/json' });
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'tensor.json';
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        window.URL.revokeObjectURL(url);
+    }
+
+    downloadWav(): void {
+        if (!this.wavBlob) {
+            console.error('WAV Blob is not available.');
+            return;
+        }
+        const url = window.URL.createObjectURL(this.wavBlob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'audio.wav';
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        window.URL.revokeObjectURL(url);
+    }
+
+    // Convert tensor to audio Blob
+    async tensorToAudioBlob(tensor: tf.Tensor, sampleRate: number): Promise<Blob> {
+        const audioData = await tensor.data() as Float32Array;
+
+        const audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
+        const numberOfChannels = tensor.shape[1] || 1; // Handle mono or stereo
+        const frameCount = audioData.length / numberOfChannels;
+
+        this.audioBuffer = audioCtx.createBuffer(numberOfChannels, frameCount, sampleRate);
+
+        // Fill the buffer with the data
+        for (let channel = 0; channel < numberOfChannels; channel++) {
+            const channelData = this.audioBuffer.getChannelData(channel);
+            for (let i = 0; i < frameCount; i++) {
+                channelData[i] = audioData[i * numberOfChannels + channel];
+            }
+        }
+
+        // Convert AudioBuffer to WAV Blob
+        return this.audioBufferToWav(this.audioBuffer);
+    }
+
+    // Function to convert AudioBuffer to WAV Blob
+    audioBufferToWav(buffer: AudioBuffer): Blob {
+        const numOfChan = buffer.numberOfChannels,
+            length = buffer.length * numOfChan * 2 + 44,
+            bufferArray = new ArrayBuffer(length),
+            view = new DataView(bufferArray),
+            channels = [],
+            sampleRate = buffer.sampleRate,
+            bitDepth = 16;
+        let offset = 0,
+            pos = 0;
+
+        // Write WAV header
+        function setUint16(data: number) {
+            view.setUint16(pos, data, true);
+            pos += 2;
+        }
+
+        function setUint32(data: number) {
+            view.setUint32(pos, data, true);
+            pos += 4;
+        }
+
+        // RIFF chunk descriptor
+        setUint32(0x46464952); // "RIFF"
+        setUint32(length - 8); // File size - 8
+        setUint32(0x45564157); // "WAVE"
+
+        // fmt sub-chunk
+        setUint32(0x20746d66); // "fmt "
+        setUint32(16); // Subchunk1Size (16 for PCM)
+        setUint16(1); // AudioFormat (1 for PCM)
+        setUint16(numOfChan);
+        setUint32(sampleRate);
+        setUint32(sampleRate * numOfChan * bitDepth / 8); // Byte rate
+        setUint16(numOfChan * bitDepth / 8); // Block align
+        setUint16(bitDepth);
+
+        // data sub-chunk
+        setUint32(0x61746164); // "data"
+        setUint32(length - pos - 4); // Subchunk2Size
+
+        // Write interleaved PCM samples
+        for (let i = 0; i < numOfChan; i++) {
+            channels.push(buffer.getChannelData(i));
+        }
+
+        const sampleCount = buffer.length;
+        while (pos < length) {
+            for (let i = 0; i < numOfChan; i++) {
+                // Interleave channels
+                let sample = Math.max(-1, Math.min(1, channels[i][offset]));
+                sample = sample < 0 ? sample * 0x8000 : sample * 0x7FFF;
+                view.setInt16(pos, sample, true);
+                pos += 2;
+            }
+            offset++;
+        }
+
+        return new Blob([bufferArray], { type: 'audio/wav' });
+    }
 }

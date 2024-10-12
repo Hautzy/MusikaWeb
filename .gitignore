@@ -1,7 +1,4 @@
 /node_modules/
 /.idea/
 /.angular/
-/functions/node_modules/
-/functions/dist/
-/functions/.idea/
-/functionsPy/.idea/
+/src/assets/models/

@@ -20,10 +20,13 @@
     "@angular/router": "^18.0.0",
     "@tensorflow/tfjs": "^4.20.0",
     "@tensorflow/tfjs-vis": "^1.5.1",
+    "angular-plotly.js": "^6.0.0",
     "fs": "^0.0.1-security",
+    "plotly.js-dist-min": "^2.35.2",
     "rxjs": "~7.8.0",
     "tslib": "^2.3.0",
     "wav-encoder": "^1.3.0",
+    "wavesurfer.js": "^7.8.6",
     "zone.js": "~0.14.3"
   },
   "devDependencies": {

@@ -1,4 +1,17 @@
-<div id="tfjs-visualization">
-    <!-- The visualization will be rendered here -->
+<!-- Controls -->
+<div class="controls">
+    <button (click)="startStereo()">Start Stereo</button>
+    <button (click)="playPause()">
+        {{ isPlaying ? 'Pause' : 'Play' }}
+    </button>
+    <button (click)="stop()">Stop</button>
+    <button (click)="downloadTensorAsJson()">Download Tensor as JSON</button>
+    <button (click)="downloadWav()">Download WAV</button>
 </div>
-<canvas id="canvas"></canvas>
+
+<div #waveform class="waveform"></div>
+
+<div #spectrogram class="spectrogram"></div>
+
+<!-- Audio Player -->
+<audio #audioPlayer controls></audio>

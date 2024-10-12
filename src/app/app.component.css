@@ -1,0 +1,66 @@
+.waveform-container,
+.spectrogram-container {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    position: relative;
+    width: 100%;
+    overflow: hidden;
+    margin-bottom: 20px;
+}
+
+.waveform,
+.spectrogram {
+    flex: 1;
+    overflow: auto;
+}
+
+.y-axis {
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    width: 50px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    writing-mode: vertical-rl;
+    text-orientation: mixed;
+    background-color: #f0f0f0;
+    z-index: 1;
+}
+
+.x-axis {
+    text-align: center;
+    margin-top: 5px;
+}
+
+.controls {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 20px;
+}
+
+.controls button {
+    padding: 5px 10px;
+}
+
+.waveform-container .waveform,
+.spectrogram-container .spectrogram {
+    margin-left: 50px; /* Adjust to accommodate y-axis labels */
+}
+
+.waveform-container,
+.spectrogram-container {
+    height: 200px; /* Set the desired height */
+}
+
+.waveform canvas,
+.spectrogram canvas {
+    width: 100% !important; /* Ensure canvases take full width */
+}
+
+audio {
+    margin-top: 20px;
+    width: 100%;
+}

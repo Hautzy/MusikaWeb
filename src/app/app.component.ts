@@ -2,6 +2,7 @@ import {Component, ElementRef, OnDestroy, ViewChild} from '@angular/core';
 import * as tf from '@tensorflow/tfjs';
 import WaveSurfer from 'wavesurfer.js';
 import SpectrogramPlugin from 'wavesurfer.js/dist/plugins/spectrogram.js';
+import {getNoiseInterpMulti} from "./noiseInterp";
 
 
 @Component({
@@ -33,7 +34,7 @@ export class AppComponent implements OnDestroy{
         }
     }
 
-    async startStereo(): Promise<void> {
+    async startInferenceStereo(): Promise<void> {
         const model = await tf.loadGraphModel('./assets/models/stereo_model_web/model.json');
         const inputTensor = tf.zeros([1, 1]);  // Generate or change input as needed
         const predictions = await model.executeAsync(inputTensor) as tf.Tensor;
@@ -86,42 +87,72 @@ export class AppComponent implements OnDestroy{
             this.waveSurfer.seekTo(0); // Reset to start
         });
 
-        // Optional: Play the audio using the native audio element
         this.playWavInBrowser();
         console.log('finished');
     }
 
-    /*
-    * async runInferenceWaveform(): Promise<void> {
-    const model = await tf.loadGraphModel('./assets/models/waveform_model_web/model.json');
-    const seconds = 120
-    const fac = Math.ceil(seconds / 23) + 1
-    let input = getNoiseInterpMulti(fac);
-    console.log('noise input', input);
 
-    const predictions = model.execute(input) as tf.Tensor[];
-    console.log('Predictions:', predictions);
+    async startInferenceWaveform(): Promise<void> {
+        const model = await tf.loadGraphModel('./assets/models/waveform_model_web/model.json');
+        const seconds = 120
+        const fac = Math.ceil(seconds / 23) + 1
+        let input = getNoiseInterpMulti(fac);
+        console.log('noise input', input);
 
-    const S = predictions[0];
-    const P = predictions[1];
+        const predictions = model.execute(input) as tf.Tensor;
+        console.log('Predictions:', predictions);
+        console.log('res', predictions.shape);
 
-    console.log('S:', S);
-    console.log('P:', P);
+        // Store the tensor data for WAV creation
+        this.tensorData = await predictions.array() as number[][];
+
+        // Convert the tensor to an audio Blob
+        this.wavBlob = await this.tensorToAudioBlob(predictions, this.sampleRate);
+
+        // Create a Blob URL
+        const blobUrl = URL.createObjectURL(this.wavBlob);
+
+        // Initialize WaveSurfer.js
+        if (this.waveSurfer) {
+            this.waveSurfer.destroy();
+        }
+        this.waveSurfer = WaveSurfer.create({
+            container: this.waveformDiv.nativeElement,
+            waveColor: 'violet',
+            progressColor: 'purple',
+            normalize: true,
+            height: 200,
+            minPxPerSec: this.zoomLevel, // Controls zoom level and enables scrolling
+            autoCenter: true,            // Auto-centers the waveform during playback
+            plugins: [
+                SpectrogramPlugin.create({
+                    container: this.spectrogramDiv.nativeElement,
+                    labels: true,
+                }),
+            ],
+        });
 
 
-    const result = await this.computeISTFT(S, P);
-    console.log('result:', result);
+        // Load the audio Blob URL into WaveSurfer
+        this.waveSurfer.load(blobUrl);
 
-    // Squeeze the tensor
-    const squeezedTensor = result.squeeze();  // Shape: [4096, 2] (no change in this case)
-    console.log('squeezedTensor:', squeezedTensor);
+        // Update playback state
+        this.waveSurfer.on('play', () => {
+            this.isPlaying = true;
+        });
 
-    // Clip the values to [-1.0, 1.0]
-    const clippedTensor = squeezedTensor.clipByValue(-1.0, 1.0);  // Shape: [4096, 2]
-    console.log('clippedTensor:', clippedTensor);
-    await this.visualizeWaveform(result);
+        this.waveSurfer.on('pause', () => {
+            this.isPlaying = false;
+        });
+
+        this.waveSurfer.on('finish', () => {
+            this.isPlaying = false;
+            this.waveSurfer.seekTo(0); // Reset to start
+        });
+
+        this.playWavInBrowser();
+        console.log('finished');
   }
-    * */
 
     playPause() {
         if (this.waveSurfer) {

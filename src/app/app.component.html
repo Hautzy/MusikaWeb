@@ -1,6 +1,7 @@
 <!-- Controls -->
 <div class="controls">
-    <button (click)="startStereo()">Start Stereo</button>
+    <button (click)="startInferenceStereo()">Start Stereo Model</button>
+    <button (click)="startInferenceWaveform()">Start Waveform Model</button>
     <button (click)="playPause()">
         {{ isPlaying ? 'Pause' : 'Play' }}
     </button>

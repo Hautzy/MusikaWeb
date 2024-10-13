@@ -19,6 +19,7 @@ export class AppComponent implements OnDestroy{
 
     tensorData: number[][] = [];
     sampleRate: number = 44100; // Default to 44.1 kHz sample rate for audio
+    noise: tf.Tensor | null = null;
 
     private waveSurfer!: WaveSurfer;
     private wavBlob!: Blob;
@@ -27,6 +28,31 @@ export class AppComponent implements OnDestroy{
     zoomLevel: number = 20; // Initial zoom level
     isPlaying: boolean = false;
 
+    selectFile() {
+        const fileInput = document.querySelector('input[type="file"]') as HTMLElement;
+        fileInput.click();
+    }
+
+    onFileSelected(event: any) {
+        const file: File = event.target.files[0];
+        if (file) {
+            const reader = new FileReader();
+
+            reader.onload = async (e: any) => {
+                const jsonData = JSON.parse(e.target.result);
+                this.loadTensorFromJSON(jsonData);
+            };
+
+            reader.readAsText(file);
+        }
+    }
+
+    loadTensorFromJSON(jsonData: any) {
+        const { data, shape } = jsonData;
+        this.noise = tf.tensor(data, shape);
+        console.log('Tensor loaded:', this.noise);
+        this.noise.print(); // To display the tensor in the console
+    }
 
     ngOnDestroy() {
         if (this.waveSurfer) {
@@ -91,15 +117,23 @@ export class AppComponent implements OnDestroy{
         console.log('finished');
     }
 
-
     async startInferenceWaveform(): Promise<void> {
+        const noise_model = await tf.loadGraphModel('./assets/models/noise_model_web/model.json');
         const model = await tf.loadGraphModel('./assets/models/waveform_model_web/model.json');
         const seconds = 120
-        const fac = Math.ceil(seconds / 23) + 1
-        let input = getNoiseInterpMulti(fac);
-        console.log('noise input', input);
+        const fac = Math.floor(seconds / 23) + 1
+        console.log('fac', fac);
 
-        const predictions = model.execute(input) as tf.Tensor;
+        let noise_predictions = this.noise;
+        if (noise_predictions == null) {
+            console.log('No noise tensor loaded, generating one...');
+            // TODO: make input of noise prediction through input
+            const inputTensor = tf.zeros([1, 1]);  // Generate or change input as needed
+            noise_predictions = await noise_model.executeAsync(inputTensor) as tf.Tensor;
+        }
+        console.log('noise_predictions', noise_predictions.shape);
+
+        const predictions = await model.executeAsync(noise_predictions) as tf.Tensor;
         console.log('Predictions:', predictions);
         console.log('res', predictions.shape);
 

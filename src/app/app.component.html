@@ -2,6 +2,9 @@
 <div class="controls">
     <button (click)="startInferenceStereo()">Start Stereo Model</button>
     <button (click)="startInferenceWaveform()">Start Waveform Model</button>
+    <button (click)="selectFile()">Load Tensor JSON</button>
+    <input type="file" #fileInput (change)="onFileSelected($event)" accept=".json" hidden />
+
     <button (click)="playPause()">
         {{ isPlaying ? 'Pause' : 'Play' }}
     </button>

@@ -132,6 +132,7 @@ export class AppComponent implements OnDestroy{
             noise_predictions = await noise_model.executeAsync(inputTensor) as tf.Tensor;
         }
         console.log('noise_predictions', noise_predictions.shape);
+        console.log('noise_predictions', noise_predictions);
 
         const predictions = await model.executeAsync(noise_predictions) as tf.Tensor;
         console.log('Predictions:', predictions);

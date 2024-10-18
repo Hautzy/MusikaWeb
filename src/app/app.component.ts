@@ -371,51 +371,53 @@ export class AppComponent implements OnDestroy{
         // Create a Blob URL
         const blobUrl = URL.createObjectURL(this.wavBlob);
 
-        // Initialize WaveSurfer.js
-        if (this.waveSurfer) {
-            this.waveSurfer.destroy();
+        // Check if WaveSurfer is already initialized
+        if (!this.waveSurfer) {
+            // Initialize WaveSurfer.js if not already created
+            this.waveSurfer = WaveSurfer.create({
+                container: this.waveformDiv.nativeElement,
+                waveColor: 'violet',
+                progressColor: 'purple',
+                normalize: true,
+                height: 200,
+                minPxPerSec: this.zoomLevel, // Controls zoom level and enables scrolling
+                autoCenter: true,            // Auto-centers the waveform during playback
+                plugins: [
+                    SpectrogramPlugin.create({
+                        container: this.spectrogramDiv.nativeElement,
+                        labels: true,
+                    }),
+                ],
+            });
+
+            // Update playback state
+            this.waveSurfer.on('play', () => {
+                this.isPlaying = true;
+            });
+
+            this.waveSurfer.on('pause', () => {
+                this.isPlaying = false;
+            });
+
+            this.waveSurfer.on('finish', async () => {
+                await this.startPlaying(this.nextContinuousTensor);
+                this.waveSurfer.seekTo(0); // Reset to start
+                await this.waveSurfer.play();
+                this.generateNextPart();
+            });
         }
-        this.waveSurfer = WaveSurfer.create({
-            container: this.waveformDiv.nativeElement,
-            waveColor: 'violet',
-            progressColor: 'purple',
-            normalize: true,
-            height: 200,
-            minPxPerSec: this.zoomLevel, // Controls zoom level and enables scrolling
-            autoCenter: true,            // Auto-centers the waveform during playback
-            plugins: [
-                SpectrogramPlugin.create({
-                    container: this.spectrogramDiv.nativeElement,
-                    labels: true,
-                }),
-            ],
-        });
 
-
-        // Load the audio Blob URL into WaveSurfer
+        // Load the new audio Blob URL without destroying the WaveSurfer instance
         this.waveSurfer.load(blobUrl);
 
-        // Update playback state
-        this.waveSurfer.on('play', () => {
-            this.isPlaying = true;
-        });
-
-        this.waveSurfer.on('pause', () => {
-            this.isPlaying = false;
-        });
-
-        this.waveSurfer.on('finish', async () => {
-            this.isPlaying = false;
-            this.waveSurfer.seekTo(0); // Reset to start
-            await this.startPlaying(this.nextContinuousTensor);
+        // Play the audio immediately after loading
+        this.waveSurfer.on('ready', async () => {
             await this.waveSurfer.play();
-            this.generateNextPart();
         });
 
-        //this.playWavInBrowser();
-        await this.waveSurfer.play();
         console.log('finished');
     }
+
 
     generateNextPart() {
         const res = this.genNoiseModel.execute([this.noiseg, this.last_right_anchor]) as tf.Tensor[];

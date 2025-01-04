@@ -346,8 +346,8 @@ export class AppComponent implements OnDestroy{
             console.log('i', i);
             const res = this.genNoiseModel.execute([this.noiseg, this.last_right_anchor]) as tf.Tensor[];
             console.log('res', res);
-            const noise = res[0] as tf.Tensor;
-            this.last_right_anchor = res[1] as tf.Tensor;
+            const noise = res[1] as tf.Tensor;
+            this.last_right_anchor = res[0] as tf.Tensor;
             console.log(noise.shape);
             console.log(this.last_right_anchor.shape);
 
@@ -422,8 +422,8 @@ export class AppComponent implements OnDestroy{
     generateNextPart() {
         const res = this.genNoiseModel.execute([this.noiseg, this.last_right_anchor]) as tf.Tensor[];
         console.log('res', res);
-        const noise = res[0] as tf.Tensor;
-        this.last_right_anchor = res[1] as tf.Tensor;
+        const noise = res[1] as tf.Tensor;
+        this.last_right_anchor = res[0] as tf.Tensor;
         console.log(noise.shape);
         console.log(this.last_right_anchor.shape);
         const predictions = this.genWaveformModel.execute(noise) as tf.Tensor;

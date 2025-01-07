@@ -1,10 +1,19 @@
 # MusikaWeb
 
+To run MusikaWeb follow the steps below.
+
+## Setup
+
+1. run the following command ```npm install```
+2. download the model from [here](https://drive.google.com/drive/folders/1lSBdQIHVoxE38PVq61f_GALRb5NHWxsS?usp=sharing) and put it into ```src/assets/models/``` directory.
+3. run ```npm start```
+
+To start music generation go to ```localhost:4200``` in your browser.
+Then click on ```Start Continuous Generation``` and enjoy the music generation.
+
 ## Resources
 
 * Colab notebook to re-load and convert models 
-
-## TODO List
 
 ### Convert all models (DONE)
 

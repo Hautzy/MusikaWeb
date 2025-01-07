@@ -17,14 +17,14 @@ export class AppComponent implements OnDestroy{
     @ViewChild('audioPlayer') audioPlayer!: ElementRef<HTMLAudioElement>;
 
     tensorData: number[][] = [];
-    sampleRate: number = 44100; // Default to 44.1 kHz sample rate for audio
+    sampleRate: number = 44100;
     noise: tf.Tensor | null = null;
 
     private waveSurfer!: WaveSurfer;
     private wavBlob!: Blob;
     private audioBuffer!: AudioBuffer;
 
-    zoomLevel: number = 20; // Initial zoom level
+    zoomLevel: number = 20;
     isPlaying: boolean = false;
 
     selectFile() {
@@ -61,20 +61,16 @@ export class AppComponent implements OnDestroy{
 
     async startInferenceStereo(): Promise<void> {
         const model = await tf.loadGraphModel('./assets/models/stereo_model_web/model.json');
-        const inputTensor = tf.zeros([1, 1]);  // Generate or change input as needed
+        const inputTensor = tf.zeros([1, 1]);
         const predictions = await model.executeAsync(inputTensor) as tf.Tensor;
         console.log('res', predictions.shape);
 
-        // Store the tensor data for WAV creation
         this.tensorData = await predictions.array() as number[][];
 
-        // Convert the tensor to an audio Blob
         this.wavBlob = await this.tensorToAudioBlob(predictions, this.sampleRate);
 
-        // Create a Blob URL
         const blobUrl = URL.createObjectURL(this.wavBlob);
 
-        // Initialize WaveSurfer.js
         if (this.waveSurfer) {
             this.waveSurfer.destroy();
         }
@@ -126,7 +122,6 @@ export class AppComponent implements OnDestroy{
         let noise_predictions = this.noise;
         if (noise_predictions == null) {
             console.log('No noise tensor loaded, generating one...');
-            // TODO: make input of noise prediction through input
             const inputTensor = tf.zeros([1, 1]);  // Generate or change input as needed
             noise_predictions = await noise_model.executeAsync(inputTensor) as tf.Tensor;
         }
@@ -137,16 +132,12 @@ export class AppComponent implements OnDestroy{
         console.log('Predictions:', predictions);
         console.log('res', predictions.shape);
 
-        // Store the tensor data for WAV creation
         this.tensorData = await predictions.array() as number[][];
 
-        // Convert the tensor to an audio Blob
         this.wavBlob = await this.tensorToAudioBlob(predictions, this.sampleRate);
 
-        // Create a Blob URL
         const blobUrl = URL.createObjectURL(this.wavBlob);
 
-        // Initialize WaveSurfer.js
         if (this.waveSurfer) {
             this.waveSurfer.destroy();
         }
@@ -156,8 +147,8 @@ export class AppComponent implements OnDestroy{
             progressColor: 'purple',
             normalize: true,
             height: 200,
-            minPxPerSec: this.zoomLevel, // Controls zoom level and enables scrolling
-            autoCenter: true,            // Auto-centers the waveform during playback
+            minPxPerSec: this.zoomLevel,
+            autoCenter: true,
             plugins: [
                 SpectrogramPlugin.create({
                     container: this.spectrogramDiv.nativeElement,
@@ -166,11 +157,8 @@ export class AppComponent implements OnDestroy{
             ],
         });
 
-
-        // Load the audio Blob URL into WaveSurfer
         this.waveSurfer.load(blobUrl);
 
-        // Update playback state
         this.waveSurfer.on('play', () => {
             this.isPlaying = true;
         });
@@ -243,7 +231,6 @@ export class AppComponent implements OnDestroy{
         window.URL.revokeObjectURL(url);
     }
 
-    // Convert tensor to audio Blob
     async tensorToAudioBlob(tensor: tf.Tensor, sampleRate: number): Promise<Blob> {
         const audioData = await tensor.data() as Float32Array;
 
@@ -265,7 +252,6 @@ export class AppComponent implements OnDestroy{
         return this.audioBufferToWav(this.audioBuffer);
     }
 
-    // Function to convert AudioBuffer to WAV Blob
     audioBufferToWav(buffer: AudioBuffer): Blob {
         const numOfChan = buffer.numberOfChannels,
             length = buffer.length * numOfChan * 2 + 44,
@@ -277,7 +263,6 @@ export class AppComponent implements OnDestroy{
         let offset = 0,
             pos = 0;
 
-        // Write WAV header
         function setUint16(data: number) {
             view.setUint16(pos, data, true);
             pos += 2;
@@ -288,12 +273,10 @@ export class AppComponent implements OnDestroy{
             pos += 4;
         }
 
-        // RIFF chunk descriptor
-        setUint32(0x46464952); // "RIFF"
+        setUint32(0x46464952); // RIFF
         setUint32(length - 8); // File size - 8
         setUint32(0x45564157); // "WAVE"
 
-        // fmt sub-chunk
         setUint32(0x20746d66); // "fmt "
         setUint32(16); // Subchunk1Size (16 for PCM)
         setUint16(1); // AudioFormat (1 for PCM)
@@ -303,11 +286,9 @@ export class AppComponent implements OnDestroy{
         setUint16(numOfChan * bitDepth / 8); // Block align
         setUint16(bitDepth);
 
-        // data sub-chunk
         setUint32(0x61746164); // "data"
         setUint32(length - pos - 4); // Subchunk2Size
 
-        // Write interleaved PCM samples
         for (let i = 0; i < numOfChan; i++) {
             channels.push(buffer.getChannelData(i));
         }
@@ -315,7 +296,6 @@ export class AppComponent implements OnDestroy{
         const sampleCount = buffer.length;
         while (pos < length) {
             for (let i = 0; i < numOfChan; i++) {
-                // Interleave channels
                 let sample = Math.max(-1, Math.min(1, channels[i][offset]));
                 sample = sample < 0 ? sample * 0x8000 : sample * 0x7FFF;
                 view.setInt16(pos, sample, true);
@@ -360,28 +340,22 @@ export class AppComponent implements OnDestroy{
             }
         }
         await this.startPlaying(this.currentContinuousTensor)
-        // start playing
-        // handler if current finished generate new and in parallel start music generation
     }
 
     async startPlaying(toPlayAudioTensor: tf.Tensor) {
-        // Convert the tensor to an audio Blob
         this.wavBlob = await this.tensorToAudioBlob(toPlayAudioTensor, this.sampleRate);
 
-        // Create a Blob URL
         const blobUrl = URL.createObjectURL(this.wavBlob);
 
-        // Check if WaveSurfer is already initialized
         if (!this.waveSurfer) {
-            // Initialize WaveSurfer.js if not already created
             this.waveSurfer = WaveSurfer.create({
                 container: this.waveformDiv.nativeElement,
                 waveColor: 'violet',
                 progressColor: 'purple',
                 normalize: true,
                 height: 200,
-                minPxPerSec: this.zoomLevel, // Controls zoom level and enables scrolling
-                autoCenter: true,            // Auto-centers the waveform during playback
+                minPxPerSec: this.zoomLevel,
+                autoCenter: true,
                 plugins: [
                     SpectrogramPlugin.create({
                         container: this.spectrogramDiv.nativeElement,
@@ -390,7 +364,6 @@ export class AppComponent implements OnDestroy{
                 ],
             });
 
-            // Update playback state
             this.waveSurfer.on('play', () => {
                 this.isPlaying = true;
             });
@@ -401,23 +374,19 @@ export class AppComponent implements OnDestroy{
 
             this.waveSurfer.on('finish', async () => {
                 await this.startPlaying(this.nextContinuousTensor);
-                this.waveSurfer.seekTo(0); // Reset to start
+                this.waveSurfer.seekTo(0);
                 await this.waveSurfer.play();
                 this.generateNextPart();
             });
         }
 
-        // Load the new audio Blob URL without destroying the WaveSurfer instance
         this.waveSurfer.load(blobUrl);
-
-        // Play the audio immediately after loading
         this.waveSurfer.on('ready', async () => {
             await this.waveSurfer.play();
         });
 
         console.log('finished');
     }
-
 
     generateNextPart() {
         const res = this.genNoiseModel.execute([this.noiseg, this.last_right_anchor]) as tf.Tensor[];

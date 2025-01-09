@@ -3,7 +3,7 @@
   "version": 1,
   "newProjectRoot": "projects",
   "projects": {
-    "musikaweb": {
+    "untitled": {
       "projectType": "application",
       "schematics": {},
       "root": "",
@@ -13,8 +13,7 @@
         "build": {
           "builder": "@angular-devkit/build-angular:application",
           "options": {
-            "outputPath": "dist/musikaweb",
-            "baseHref": "/MusikaWeb/",
+            "outputPath": "dist/untitled",
             "index": "src/index.html",
             "browser": "src/main.ts",
             "polyfills": [
@@ -38,13 +37,13 @@
               "budgets": [
                 {
                   "type": "initial",
-                  "maximumWarning": "2mb",
-                  "maximumError": "3mb"
+                  "maximumWarning": "500kB",
+                  "maximumError": "1MB"
                 },
                 {
                   "type": "anyComponentStyle",
-                  "maximumWarning": "10kB",
-                  "maximumError": "15kB"
+                  "maximumWarning": "2kB",
+                  "maximumError": "4kB"
                 }
               ],
               "outputHashing": "all"

@@ -1,7 +1,5 @@
-import {Component, ElementRef, OnDestroy, ViewChild} from '@angular/core';
+import {Component, ElementRef, OnInit, ViewChild} from '@angular/core';
 import * as tf from '@tensorflow/tfjs';
-import WaveSurfer from 'wavesurfer.js';
-import SpectrogramPlugin from 'wavesurfer.js/dist/plugins/spectrogram.js';
 
 
 @Component({
@@ -10,225 +8,139 @@ import SpectrogramPlugin from 'wavesurfer.js/dist/plugins/spectrogram.js';
     templateUrl: './app.component.html',
     styleUrl: './app.component.css'
 })
-export class AppComponent implements OnDestroy{
+export class AppComponent implements OnInit {
+    @ViewChild('canvas', { static: true }) canvas!: ElementRef<HTMLCanvasElement>;
 
     @ViewChild('waveform') waveformDiv!: ElementRef;
     @ViewChild('spectrogram') spectrogramDiv!: ElementRef;
     @ViewChild('audioPlayer') audioPlayer!: ElementRef<HTMLAudioElement>;
 
-    tensorData: number[][] = [];
     sampleRate: number = 44100;
-    noise: tf.Tensor | null = null;
 
-    private waveSurfer!: WaveSurfer;
-    private wavBlob!: Blob;
-    private audioBuffer!: AudioBuffer;
-
-    zoomLevel: number = 20;
+    audioBuffer!: AudioBuffer;
+    frame_size = [1049344, 2];
+    currentContinuousTensor: tf.Tensor = tf.zeros(this.frame_size);
+    nextContinuousTensor: tf.Tensor = tf.zeros(this.frame_size);
+    last_right_anchor: tf.Tensor = tf.ones([1, 128]);
+    noiseg: tf.Tensor = tf.ones([1, 64]);
+    genNoiseModel: any;
+    genWaveformModel: any;
     isPlaying: boolean = false;
+    audioContext!: AudioContext;
+    sourceNode!: AudioBufferSourceNode | null;
+    analyser!: AnalyserNode;
+    animationFrameId!: number;
+    blobs: Blob[] = [];
+    currentBlobIndex: number = 0;
+    canvasContext!: CanvasRenderingContext2D;
+    currentBlob: Blob | null = null;
 
-    selectFile() {
-        const fileInput = document.querySelector('input[type="file"]') as HTMLElement;
-        fileInput.click();
+    async ngOnInit() {
+        this.canvasContext = this.canvas.nativeElement.getContext('2d')!;
     }
 
-    onFileSelected(event: any) {
-        const file: File = event.target.files[0];
-        if (file) {
-            const reader = new FileReader();
-
-            reader.onload = async (e: any) => {
-                const jsonData = JSON.parse(e.target.result);
-                this.loadTensorFromJSON(jsonData);
-            };
-
-            reader.readAsText(file);
-        }
+    constructor() {
+        this.audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
+        this.analyser = this.audioContext.createAnalyser();
+        this.analyser.fftSize = 256;
     }
 
-    loadTensorFromJSON(jsonData: any) {
-        const { data, shape } = jsonData;
-        this.noise = tf.tensor(data, shape);
-        console.log('Tensor loaded:', this.noise);
-        this.noise.print(); // To display the tensor in the console
+    addBlob(blob: Blob): void {
+        this.blobs.push(blob);
     }
 
-    ngOnDestroy() {
-        if (this.waveSurfer) {
-            this.waveSurfer.destroy();
-        }
+    async generatePlayback(): Promise<void> {
+        console.log('generate playback');
+        this.currentBlobIndex = 0;
+        this.blobs = [];
+        this.isPlaying = false;
+        await this.audioContext.close()
+        this.audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
+        this.analyser = this.audioContext.createAnalyser();
+        this.analyser.fftSize = 256;
+
+        await this.startContinuousGeneration();
+        const waveBlob = await this.tensorToAudioBlob(this.currentContinuousTensor, this.sampleRate);
+        this.addBlob(waveBlob);
+        const nextWaveBlob = await this.tensorToAudioBlob(this.nextContinuousTensor, this.sampleRate);
+        this.addBlob(nextWaveBlob);
+        await this.startPlayback();
     }
 
-    async startInferenceStereo(): Promise<void> {
-        const model = await tf.loadGraphModel('./assets/models/stereo_model_web/model.json');
-        const inputTensor = tf.zeros([1, 1]);
-        const predictions = await model.executeAsync(inputTensor) as tf.Tensor;
-        console.log('res', predictions.shape);
+    async startPlayback(): Promise<void> {
+        if (this.isPlaying || this.blobs.length === 0) return;
 
-        this.tensorData = await predictions.array() as number[][];
+        this.isPlaying = true;
+        this.currentBlob = this.blobs[this.currentBlobIndex];
 
-        this.wavBlob = await this.tensorToAudioBlob(predictions, this.sampleRate);
+        const arrayBuffer = await this.currentBlob.arrayBuffer();
+        const audioBuffer = await this.audioContext.decodeAudioData(arrayBuffer);
 
-        const blobUrl = URL.createObjectURL(this.wavBlob);
+        this.sourceNode = this.audioContext.createBufferSource();
+        this.sourceNode.buffer = audioBuffer;
+        this.sourceNode.connect(this.analyser);
+        this.analyser.connect(this.audioContext.destination);
 
-        if (this.waveSurfer) {
-            this.waveSurfer.destroy();
-        }
-        this.waveSurfer = WaveSurfer.create({
-            container: this.waveformDiv.nativeElement,
-            waveColor: 'violet',
-            progressColor: 'purple',
-            normalize: true,
-            height: 200,
-            minPxPerSec: this.zoomLevel, // Controls zoom level and enables scrolling
-            autoCenter: true,            // Auto-centers the waveform during playback
-            plugins: [
-                SpectrogramPlugin.create({
-                    container: this.spectrogramDiv.nativeElement,
-                    labels: true,
-                }),
-            ],
-        });
-
-
-        // Load the audio Blob URL into WaveSurfer
-        this.waveSurfer.load(blobUrl);
-
-        // Update playback state
-        this.waveSurfer.on('play', () => {
-            this.isPlaying = true;
-        });
-
-        this.waveSurfer.on('pause', () => {
+        this.sourceNode.start(0);
+        this.sourceNode.onended = async () => {
             this.isPlaying = false;
-        });
+            this.currentBlobIndex = (this.currentBlobIndex + 1) % this.blobs.length;
+            console.log('switch to new blob');
+            await this.startPlayback();
 
-        this.waveSurfer.on('finish', () => {
-            this.isPlaying = false;
-            this.waveSurfer.seekTo(0); // Reset to start
-        });
+            this.generateNextPart();
+            const nextWaveBlob = await this.tensorToAudioBlob(this.nextContinuousTensor, this.sampleRate);
+            this.addBlob(nextWaveBlob);
+            console.log('new blob added');
+        };
 
-        //this.playWavInBrowser();
-        console.log('finished');
+        this.visualize();
     }
 
-    async startInferenceWaveform(): Promise<void> {
-        const noise_model = await tf.loadGraphModel('./assets/models/noise_model_web/model.json');
-        const model = await tf.loadGraphModel('./assets/models/waveform_model_web_fac_6/model.json');
-        const seconds = 120
-        const fac = Math.floor(seconds / 23) + 1
-        console.log('fac', fac);
-
-        let noise_predictions = this.noise;
-        if (noise_predictions == null) {
-            console.log('No noise tensor loaded, generating one...');
-            const inputTensor = tf.zeros([1, 1]);  // Generate or change input as needed
-            noise_predictions = await noise_model.executeAsync(inputTensor) as tf.Tensor;
-        }
-        console.log('noise_predictions', noise_predictions.shape);
-        console.log('noise_predictions', noise_predictions);
-
-        const predictions = await model.executeAsync(noise_predictions) as tf.Tensor;
-        console.log('Predictions:', predictions);
-        console.log('res', predictions.shape);
-
-        this.tensorData = await predictions.array() as number[][];
-
-        this.wavBlob = await this.tensorToAudioBlob(predictions, this.sampleRate);
-
-        const blobUrl = URL.createObjectURL(this.wavBlob);
-
-        if (this.waveSurfer) {
-            this.waveSurfer.destroy();
-        }
-        this.waveSurfer = WaveSurfer.create({
-            container: this.waveformDiv.nativeElement,
-            waveColor: 'violet',
-            progressColor: 'purple',
-            normalize: true,
-            height: 200,
-            minPxPerSec: this.zoomLevel,
-            autoCenter: true,
-            plugins: [
-                SpectrogramPlugin.create({
-                    container: this.spectrogramDiv.nativeElement,
-                    labels: true,
-                }),
-            ],
-        });
-
-        this.waveSurfer.load(blobUrl);
-
-        this.waveSurfer.on('play', () => {
-            this.isPlaying = true;
-        });
-
-        this.waveSurfer.on('pause', () => {
+    pausePlayback(): void {
+        if (this.isPlaying) {
+            this.audioContext.suspend();
             this.isPlaying = false;
-        });
-
-        this.waveSurfer.on('finish', () => {
-            this.isPlaying = false;
-            this.waveSurfer.seekTo(0); // Reset to start
-        });
-
-        //this.playWavInBrowser();
-        console.log('finished');
-  }
-
-    playPause() {
-        if (this.waveSurfer) {
-            this.waveSurfer.playPause();
-            // isPlaying state will be updated via event listeners
+            cancelAnimationFrame(this.animationFrameId);
         }
     }
 
-    stop() {
-        if (this.waveSurfer) {
-            this.waveSurfer.stop();
-            this.isPlaying = false;
-        }
+    async resumePlayback(): Promise<void> {
+        if (this.isPlaying || !this.currentBlob) return;
+        await this.audioContext.resume();
+        this.isPlaying = true;
+        this.visualize();
+        console.log('Audio resumed');
     }
 
-    /*playWavInBrowser(): void {
-        if (!this.wavBlob) {
-            console.error('Audio Blob is not available.');
-            return;
-        }
-        const url = window.URL.createObjectURL(this.wavBlob);
+    visualize(): void {
+        const bufferLength = this.analyser.frequencyBinCount;
+        const dataArray = new Uint8Array(bufferLength);
 
-        // Set the audio player's source to the generated WAV file
-        const audioElement = this.audioPlayer.nativeElement;
-        audioElement.src = url;
-        audioElement.load();
-    }*/
+        const width = this.canvas.nativeElement.width;
+        const height = this.canvas.nativeElement.height;
 
-    downloadTensorAsJson() {
-        const jsonData = JSON.stringify(this.tensorData);
-        const blob = new Blob([jsonData], { type: 'application/json' });
-        const url = window.URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = 'tensor.json';
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        window.URL.revokeObjectURL(url);
-    }
+        const draw = () => {
+            this.animationFrameId = requestAnimationFrame(draw);
 
-    downloadWav(): void {
-        if (!this.wavBlob) {
-            console.error('WAV Blob is not available.');
-            return;
-        }
-        const url = window.URL.createObjectURL(this.wavBlob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = 'audio.wav';
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        window.URL.revokeObjectURL(url);
+            this.analyser.getByteFrequencyData(dataArray);
+
+            this.canvasContext.fillStyle = '#000';
+            this.canvasContext.fillRect(0, 0, width, height);
+
+            const barWidth = (width / bufferLength) * 2.5;
+            let barHeight;
+            let x = 0;
+
+            for (let i = 0; i < bufferLength; i++) {
+                barHeight = dataArray[i] / 2;
+                this.canvasContext.fillStyle = `rgb(${barHeight + 100}, 50, 50)`;
+                this.canvasContext.fillRect(x, height - barHeight, barWidth, barHeight);
+                x += barWidth + 1;
+            }
+        };
+
+        draw();
     }
 
     async tensorToAudioBlob(tensor: tf.Tensor, sampleRate: number): Promise<Blob> {
@@ -240,7 +152,6 @@ export class AppComponent implements OnDestroy{
 
         this.audioBuffer = audioCtx.createBuffer(numberOfChannels, frameCount, sampleRate);
 
-        // Fill the buffer with the data
         for (let channel = 0; channel < numberOfChannels; channel++) {
             const channelData = this.audioBuffer.getChannelData(channel);
             for (let i = 0; i < frameCount; i++) {
@@ -248,8 +159,40 @@ export class AppComponent implements OnDestroy{
             }
         }
 
-        // Convert AudioBuffer to WAV Blob
         return this.audioBufferToWav(this.audioBuffer);
+    }
+
+    async startContinuousGeneration() {
+        this.genNoiseModel = await tf.loadGraphModel('./assets/models/continous_noise_model_web/model.json');
+        this.genWaveformModel = await tf.loadGraphModel('./assets/models/waveform_model_web/model.json');
+
+        for (let i = 0; i < 3; i++) {
+            const res = this.genNoiseModel.execute([this.noiseg, this.last_right_anchor]) as tf.Tensor[];
+            const noise = res[1] as tf.Tensor;
+            this.last_right_anchor = res[0] as tf.Tensor;
+            console.log(noise.shape);
+            console.log(this.last_right_anchor.shape);
+
+            if (i > 0) {
+                const predictions = this.genWaveformModel.execute(noise) as tf.Tensor;
+                this.currentContinuousTensor = this.nextContinuousTensor
+                this.nextContinuousTensor = predictions;
+            }
+        }
+    }
+
+    generateNextPart() {
+        const res = this.genNoiseModel.execute([this.noiseg, this.last_right_anchor]) as tf.Tensor[];
+        console.log('res', res);
+        const noise = res[1] as tf.Tensor;
+        this.last_right_anchor = res[0] as tf.Tensor;
+        console.log(noise.shape);
+        console.log(this.last_right_anchor.shape);
+        const predictions = this.genWaveformModel.execute(noise) as tf.Tensor;
+        console.log('Predictions:', predictions);
+        console.log('res', predictions.shape);
+        this.currentContinuousTensor = this.nextContinuousTensor;
+        this.nextContinuousTensor = predictions;
     }
 
     audioBufferToWav(buffer: AudioBuffer): Blob {
@@ -273,27 +216,25 @@ export class AppComponent implements OnDestroy{
             pos += 4;
         }
 
-        setUint32(0x46464952); // RIFF
-        setUint32(length - 8); // File size - 8
-        setUint32(0x45564157); // "WAVE"
+        setUint32(0x46464952);
+        setUint32(length - 8);
+        setUint32(0x45564157);
 
-        setUint32(0x20746d66); // "fmt "
-        setUint32(16); // Subchunk1Size (16 for PCM)
-        setUint16(1); // AudioFormat (1 for PCM)
+        setUint32(0x20746d66);
+        setUint32(16);
+        setUint16(1);
         setUint16(numOfChan);
         setUint32(sampleRate);
-        setUint32(sampleRate * numOfChan * bitDepth / 8); // Byte rate
-        setUint16(numOfChan * bitDepth / 8); // Block align
+        setUint32(sampleRate * numOfChan * bitDepth / 8);
+        setUint16(numOfChan * bitDepth / 8);
         setUint16(bitDepth);
 
-        setUint32(0x61746164); // "data"
-        setUint32(length - pos - 4); // Subchunk2Size
+        setUint32(0x61746164);
+        setUint32(length - pos - 4);
 
         for (let i = 0; i < numOfChan; i++) {
             channels.push(buffer.getChannelData(i));
         }
-
-        const sampleCount = buffer.length;
         while (pos < length) {
             for (let i = 0; i < numOfChan; i++) {
                 let sample = Math.max(-1, Math.min(1, channels[i][offset]));
@@ -305,100 +246,5 @@ export class AppComponent implements OnDestroy{
         }
 
         return new Blob([bufferArray], { type: 'audio/wav' });
-    }
-
-    frame_size = [1049344, 2];
-    currentContinuousTensor: tf.Tensor = tf.zeros(this.frame_size);
-    nextContinuousTensor: tf.Tensor = tf.zeros(this.frame_size);
-
-    last_right_anchor: tf.Tensor = tf.ones([1, 128]);
-
-    noiseg: tf.Tensor = tf.ones([1, 64]);
-
-    genNoiseModel: any;
-    genWaveformModel: any;
-
-    async startContinuousGeneration() {
-        this.genNoiseModel = await tf.loadGraphModel('./assets/models/continous_noise_model_web/model.json');
-        this.genWaveformModel = await tf.loadGraphModel('./assets/models/waveform_model_web/model.json');
-
-        for (let i = 0; i < 3; i++) {
-            console.log('i', i);
-            const res = this.genNoiseModel.execute([this.noiseg, this.last_right_anchor]) as tf.Tensor[];
-            console.log('res', res);
-            const noise = res[1] as tf.Tensor;
-            this.last_right_anchor = res[0] as tf.Tensor;
-            console.log(noise.shape);
-            console.log(this.last_right_anchor.shape);
-
-            if (i > 0) {
-                const predictions = this.genWaveformModel.execute(noise) as tf.Tensor;
-                console.log('Predictions:', predictions);
-                console.log('res', predictions.shape);
-                this.currentContinuousTensor = this.nextContinuousTensor
-                this.nextContinuousTensor = predictions;
-            }
-        }
-        await this.startPlaying(this.currentContinuousTensor)
-    }
-
-    async startPlaying(toPlayAudioTensor: tf.Tensor) {
-        this.wavBlob = await this.tensorToAudioBlob(toPlayAudioTensor, this.sampleRate);
-
-        const blobUrl = URL.createObjectURL(this.wavBlob);
-
-        if (!this.waveSurfer) {
-            this.waveSurfer = WaveSurfer.create({
-                container: this.waveformDiv.nativeElement,
-                waveColor: 'violet',
-                progressColor: 'purple',
-                normalize: true,
-                height: 200,
-                minPxPerSec: this.zoomLevel,
-                autoCenter: true,
-                plugins: [
-                    SpectrogramPlugin.create({
-                        container: this.spectrogramDiv.nativeElement,
-                        labels: true,
-                    }),
-                ],
-            });
-
-            this.waveSurfer.on('play', () => {
-                this.isPlaying = true;
-            });
-
-            this.waveSurfer.on('pause', () => {
-                this.isPlaying = false;
-            });
-
-            this.waveSurfer.on('finish', async () => {
-                await this.startPlaying(this.nextContinuousTensor);
-                this.waveSurfer.seekTo(0);
-                await this.waveSurfer.play();
-                this.generateNextPart();
-            });
-        }
-
-        this.waveSurfer.load(blobUrl);
-        this.waveSurfer.on('ready', async () => {
-            await this.waveSurfer.play();
-        });
-
-        console.log('finished');
-    }
-
-    generateNextPart() {
-        const res = this.genNoiseModel.execute([this.noiseg, this.last_right_anchor]) as tf.Tensor[];
-        console.log('res', res);
-        const noise = res[1] as tf.Tensor;
-        this.last_right_anchor = res[0] as tf.Tensor;
-        console.log(noise.shape);
-        console.log(this.last_right_anchor.shape);
-        const predictions = this.genWaveformModel.execute(noise) as tf.Tensor;
-        console.log('Predictions:', predictions);
-        console.log('res', predictions.shape);
-        this.currentContinuousTensor = this.nextContinuousTensor;
-        this.nextContinuousTensor = predictions;
     }
 }

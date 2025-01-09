@@ -1,66 +1,43 @@
-.waveform-container,
-.spectrogram-container {
-    display: flex;
-    flex-direction: column;
-    align-items: stretch;
-    position: relative;
-    width: 100%;
-    overflow: hidden;
-    margin-bottom: 20px;
+@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600&display=swap');
+
+h2 {
+    font-family: 'Poppins', sans-serif;
+    font-weight: 400;
+    line-height: 1.6;
+    color: #333;
+    margin: 0;
+    padding: 0;
+    background-color: #f9f9f9
 }
 
-.waveform,
-.spectrogram {
-    flex: 1;
-    overflow: auto;
+button {
+    margin: 5px;
+    padding: 10px 20px;
+    font-size: 16px;
+    font-family: 'Poppins', sans-serif;
+    font-weight: 600;
+    color: #fff;
+    background-color: #007bff;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+    transition: background-color 0.3s ease, transform 0.2s ease;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
 }
 
-.y-axis {
-    position: absolute;
-    left: 0;
-    top: 0;
-    bottom: 0;
-    width: 50px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    writing-mode: vertical-rl;
-    text-orientation: mixed;
-    background-color: #f0f0f0;
-    z-index: 1;
+button:hover {
+    background-color: #0056b3;
+    transform: scale(1.05);
 }
 
-.x-axis {
-    text-align: center;
-    margin-top: 5px;
+button:active {
+    background-color: #003f7f;
+    transform: scale(0.95);
 }
 
-.controls {
-    display: flex;
-    gap: 10px;
-    margin-bottom: 20px;
-}
-
-.controls button {
-    padding: 5px 10px;
-}
-
-.waveform-container .waveform,
-.spectrogram-container .spectrogram {
-    margin-left: 50px; /* Adjust to accommodate y-axis labels */
-}
-
-.waveform-container,
-.spectrogram-container {
-    height: 200px; /* Set the desired height */
-}
-
-.waveform canvas,
-.spectrogram canvas {
-    width: 100% !important; /* Ensure canvases take full width */
-}
-
-audio {
-    margin-top: 20px;
-    width: 100%;
+button:disabled {
+    background-color: #cccccc;
+    color: #666666;
+    cursor: not-allowed;
+    box-shadow: none;
 }

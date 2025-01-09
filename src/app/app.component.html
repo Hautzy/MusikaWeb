@@ -1,22 +1,9 @@
-<!-- Controls -->
-<div class="controls">
-    <!--<button (click)="startInferenceStereo()">Start Stereo Model</button>
-    <button (click)="startInferenceWaveform()">Start Waveform Model</button>-->
-    <button (click)="startContinuousGeneration()">Start Continuous Generation</button>
-    <!--<button (click)="selectFile()">Load Tensor JSON</button>-->
-    <input type="file" #fileInput (change)="onFileSelected($event)" accept=".json" hidden />
-
-    <button (click)="playPause()">
-        {{ isPlaying ? 'Pause' : 'Play' }}
-    </button>
-    <button (click)="stop()">Stop</button>
-    <!--<button (click)="downloadTensorAsJson()">Download Tensor as JSON</button>
-    <button (click)="downloadWav()">Download WAV</button>-->
+<div>
+    <h2>MusikaWeb</h2>
+    <canvas #canvas width="800" height="300" style="border: 1px solid #000;"></canvas>
+    <div>
+        <button (click)="generatePlayback()">Generate</button>
+        <button (click)="pausePlayback()">Pause</button>
+        <button (click)="resumePlayback()">Resume</button>
+    </div>
 </div>
-
-<div #waveform class="waveform"></div>
-
-<div #spectrogram class="spectrogram"></div>
-
-<!-- Audio Player -->
-<!--<audio #audioPlayer controls></audio>-->

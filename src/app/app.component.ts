@@ -13,26 +13,32 @@ export class AppComponent implements OnInit {
 
     sampleRate: number = 44100;
     isGenerating: boolean = false;
+    frameDurationSeconds = 23.79465;
 
     audioBuffer!: AudioBuffer;
-    frame_size = [1049344, 2];
-    currentContinuousTensor: tf.Tensor = tf.zeros(this.frame_size);
-    nextContinuousTensor: tf.Tensor = tf.zeros(this.frame_size);
+    frameSize = [1049344, 2];
+    
     last_right_anchor: tf.Tensor = tf.ones([1, 128]);
     noiseg: tf.Tensor = tf.ones([1, 64]);
     genNoiseModel: any;
     genWaveformModel: any;
     isPlaying: boolean = false;
     audioContext!: AudioContext;
-    sourceNode!: AudioBufferSourceNode | null;
     analyser!: AnalyserNode;
     animationFrameId!: number;
-    blobs: Blob[] = [];
-    currentBlobIndex: number = 0;
     canvasContext!: CanvasRenderingContext2D;
-    currentBlob: Blob | null = null;
 
-    async ngOnInit() {
+    currentContinuousTensor: tf.Tensor = tf.zeros(this.frameSize);
+    nextContinuousTensor: tf.Tensor = tf.zeros(this.frameSize);
+    maxMusicFrame: number = 0;
+
+    currentBlob: Blob | null = null;
+    nextBlob: Blob | null = null;
+
+    sourceNodeOne!: AudioBufferSourceNode | null;
+    sourceNodeTwo!: AudioBufferSourceNode | null;
+
+    async ngOnInit(): Promise<void> {
         this.genNoiseModel = await tf.loadGraphModel('./assets/models/continous_noise_model_web/model.json');
         this.genWaveformModel = await tf.loadGraphModel('./assets/models/waveform_model_web/model.json');
         console.log('models loaded');
@@ -45,58 +51,65 @@ export class AppComponent implements OnInit {
         this.analyser.fftSize = 256;
     }
 
-    addBlob(blob: Blob): void {
-        this.blobs.push(blob);
-    }
-
     async generatePlayback(): Promise<void> {
         this.isGenerating = true;
-        if (this.sourceNode) {
+        if (this.sourceNodeOne && this.sourceNodeTwo) {
             cancelAnimationFrame(this.animationFrameId);
-            this.sourceNode.stop();
-            this.currentBlobIndex = 0;
-            this.blobs = [];
+            this.sourceNodeOne.stop();
+            this.sourceNodeTwo.stop();
+            this.maxMusicFrame = 0;
             this.isPlaying = false;
         }
         console.log('generate playback');
 
         await this.startContinuousGeneration();
-        const waveBlob = await this.tensorToAudioBlob(this.currentContinuousTensor, this.sampleRate);
-        this.addBlob(waveBlob);
-        const nextWaveBlob = await this.tensorToAudioBlob(this.nextContinuousTensor, this.sampleRate);
-        this.addBlob(nextWaveBlob);
-        await this.startPlayback();
+        this.currentBlob = await this.tensorToAudioBlob(this.currentContinuousTensor, this.sampleRate);
+        await this.startPlayback(this.currentBlob);
+        this.maxMusicFrame++;
+        this.nextBlob = await this.tensorToAudioBlob(this.nextContinuousTensor, this.sampleRate);
+        await this.startPlayback(this.nextBlob);
+        this.maxMusicFrame++;
         this.isGenerating = false;
     }
 
-    async startPlayback(): Promise<void> {
-        if (this.isPlaying || this.blobs.length === 0) return;
+    async startPlayback(blob: Blob): Promise<void> {
+        if (!blob) return;
 
         this.isPlaying = true;
-        this.currentBlob = this.blobs[this.currentBlobIndex];
 
-        const arrayBuffer = await this.currentBlob.arrayBuffer();
+        const arrayBuffer = await blob.arrayBuffer();
         const audioBuffer = await this.audioContext.decodeAudioData(arrayBuffer);
 
-        this.sourceNode = this.audioContext.createBufferSource();
-        this.sourceNode.buffer = audioBuffer;
-        this.sourceNode.connect(this.analyser);
+        const sourceNode = this.audioContext.createBufferSource();
+
+        if (this.maxMusicFrame % 2 == 0) {
+            this.sourceNodeOne = sourceNode;
+            console.log('take source node ONE!')
+        } else {
+            this.sourceNodeTwo = sourceNode;
+            console.log('take source node TWO!')
+        }
+
+        sourceNode.buffer = audioBuffer;
+        sourceNode.connect(this.analyser);
         this.analyser.connect(this.audioContext.destination);
 
-        this.sourceNode.start(0);
-        this.sourceNode.onended = async () => {
+        console.log(`schedule ${this.maxMusicFrame+1} blob`)
+        console.log(`start at ${this.maxMusicFrame * this.frameDurationSeconds} secs`)
+
+        sourceNode.start(this.maxMusicFrame * this.frameDurationSeconds);
+
+        sourceNode.onended = async (): Promise<void> => {
             if (this.isGenerating) {
                 return;
             }
             this.isPlaying = false;
-            this.currentBlobIndex = (this.currentBlobIndex + 1) % this.blobs.length;
-            console.log('switch to new blob');
-            await this.startPlayback();
-
+            console.log(`generate ${this.maxMusicFrame+1} blob`);
             this.generateNextPart();
-            const nextWaveBlob = await this.tensorToAudioBlob(this.nextContinuousTensor, this.sampleRate);
-            this.addBlob(nextWaveBlob);
-            console.log('new blob added');
+            this.currentBlob = this.nextBlob;
+            this.nextBlob = await this.tensorToAudioBlob(this.nextContinuousTensor, this.sampleRate);
+            await this.startPlayback(this.nextBlob);
+            this.maxMusicFrame++;
         };
 
         this.visualize();
@@ -115,7 +128,6 @@ export class AppComponent implements OnInit {
         await this.audioContext.resume();
         this.isPlaying = true;
         this.visualize();
-        console.log('Audio resumed');
     }
 
     visualize(): void {
@@ -148,25 +160,6 @@ export class AppComponent implements OnInit {
         draw();
     }
 
-    async tensorToAudioBlob(tensor: tf.Tensor, sampleRate: number): Promise<Blob> {
-        const audioData = await tensor.data() as Float32Array;
-
-        const audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
-        const numberOfChannels = tensor.shape[1] || 1; // Handle mono or stereo
-        const frameCount = audioData.length / numberOfChannels;
-
-        this.audioBuffer = audioCtx.createBuffer(numberOfChannels, frameCount, sampleRate);
-
-        for (let channel = 0; channel < numberOfChannels; channel++) {
-            const channelData = this.audioBuffer.getChannelData(channel);
-            for (let i = 0; i < frameCount; i++) {
-                channelData[i] = audioData[i * numberOfChannels + channel];
-            }
-        }
-
-        return this.audioBufferToWav(this.audioBuffer);
-    }
-
     async startContinuousGeneration() {
         for (let i = 0; i < 3; i++) {
             const res = this.genNoiseModel.execute([this.noiseg, this.last_right_anchor]) as tf.Tensor[];
@@ -185,16 +178,30 @@ export class AppComponent implements OnInit {
 
     generateNextPart() {
         const res = this.genNoiseModel.execute([this.noiseg, this.last_right_anchor]) as tf.Tensor[];
-        console.log('res', res);
         const noise = res[1] as tf.Tensor;
         this.last_right_anchor = res[0] as tf.Tensor;
-        console.log(noise.shape);
-        console.log(this.last_right_anchor.shape);
         const predictions = this.genWaveformModel.execute(noise) as tf.Tensor;
-        console.log('Predictions:', predictions);
-        console.log('res', predictions.shape);
         this.currentContinuousTensor = this.nextContinuousTensor;
         this.nextContinuousTensor = predictions;
+    }
+
+    async tensorToAudioBlob(tensor: tf.Tensor, sampleRate: number): Promise<Blob> {
+        const audioData = await tensor.data() as Float32Array;
+
+        const audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
+        const numberOfChannels = tensor.shape[1] || 1; // Handle mono or stereo
+        const frameCount = audioData.length / numberOfChannels;
+
+        this.audioBuffer = audioCtx.createBuffer(numberOfChannels, frameCount, sampleRate);
+
+        for (let channel = 0; channel < numberOfChannels; channel++) {
+            const channelData = this.audioBuffer.getChannelData(channel);
+            for (let i = 0; i < frameCount; i++) {
+                channelData[i] = audioData[i * numberOfChannels + channel];
+            }
+        }
+
+        return this.audioBufferToWav(this.audioBuffer);
     }
 
     audioBufferToWav(buffer: AudioBuffer): Blob {

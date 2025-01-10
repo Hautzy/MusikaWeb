@@ -11,11 +11,8 @@ import * as tf from '@tensorflow/tfjs';
 export class AppComponent implements OnInit {
     @ViewChild('canvas', { static: true }) canvas!: ElementRef<HTMLCanvasElement>;
 
-    @ViewChild('waveform') waveformDiv!: ElementRef;
-    @ViewChild('spectrogram') spectrogramDiv!: ElementRef;
-    @ViewChild('audioPlayer') audioPlayer!: ElementRef<HTMLAudioElement>;
-
     sampleRate: number = 44100;
+    isGenerating: boolean = false;
 
     audioBuffer!: AudioBuffer;
     frame_size = [1049344, 2];
@@ -36,6 +33,9 @@ export class AppComponent implements OnInit {
     currentBlob: Blob | null = null;
 
     async ngOnInit() {
+        this.genNoiseModel = await tf.loadGraphModel('./assets/models/continous_noise_model_web/model.json');
+        this.genWaveformModel = await tf.loadGraphModel('./assets/models/waveform_model_web/model.json');
+        console.log('models loaded');
         this.canvasContext = this.canvas.nativeElement.getContext('2d')!;
     }
 
@@ -50,14 +50,15 @@ export class AppComponent implements OnInit {
     }
 
     async generatePlayback(): Promise<void> {
+        this.isGenerating = true;
+        if (this.sourceNode) {
+            cancelAnimationFrame(this.animationFrameId);
+            this.sourceNode.stop();
+            this.currentBlobIndex = 0;
+            this.blobs = [];
+            this.isPlaying = false;
+        }
         console.log('generate playback');
-        this.currentBlobIndex = 0;
-        this.blobs = [];
-        this.isPlaying = false;
-        await this.audioContext.close()
-        this.audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
-        this.analyser = this.audioContext.createAnalyser();
-        this.analyser.fftSize = 256;
 
         await this.startContinuousGeneration();
         const waveBlob = await this.tensorToAudioBlob(this.currentContinuousTensor, this.sampleRate);
@@ -65,6 +66,7 @@ export class AppComponent implements OnInit {
         const nextWaveBlob = await this.tensorToAudioBlob(this.nextContinuousTensor, this.sampleRate);
         this.addBlob(nextWaveBlob);
         await this.startPlayback();
+        this.isGenerating = false;
     }
 
     async startPlayback(): Promise<void> {
@@ -83,6 +85,9 @@ export class AppComponent implements OnInit {
 
         this.sourceNode.start(0);
         this.sourceNode.onended = async () => {
+            if (this.isGenerating) {
+                return;
+            }
             this.isPlaying = false;
             this.currentBlobIndex = (this.currentBlobIndex + 1) % this.blobs.length;
             console.log('switch to new blob');
@@ -163,9 +168,6 @@ export class AppComponent implements OnInit {
     }
 
     async startContinuousGeneration() {
-        this.genNoiseModel = await tf.loadGraphModel('./assets/models/continous_noise_model_web/model.json');
-        this.genWaveformModel = await tf.loadGraphModel('./assets/models/waveform_model_web/model.json');
-
         for (let i = 0; i < 3; i++) {
             const res = this.genNoiseModel.execute([this.noiseg, this.last_right_anchor]) as tf.Tensor[];
             const noise = res[1] as tf.Tensor;

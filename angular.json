@@ -61,10 +61,10 @@
           "builder": "@angular-devkit/build-angular:dev-server",
           "configurations": {
             "production": {
-              "buildTarget": "untitled:build:production"
+              "buildTarget": "musikaweb:build:production"
             },
             "development": {
-              "buildTarget": "untitled:build:development"
+              "buildTarget": "musikaweb:build:development"
             }
           },
           "defaultConfiguration": "development"

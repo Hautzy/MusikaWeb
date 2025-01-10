@@ -32,8 +32,8 @@ export class AppComponent implements OnInit {
     nextContinuousTensor: tf.Tensor = tf.zeros(this.frameSize);
     maxMusicFrame: number = 0;
 
-    currentBlob: Blob | null = null;
-    nextBlob: Blob | null = null;
+    currentBuffer: AudioBuffer | null = null;
+    nextBuffer: AudioBuffer | null = null;
 
     sourceNodeOne!: AudioBufferSourceNode | null;
     sourceNodeTwo!: AudioBufferSourceNode | null;
@@ -63,22 +63,20 @@ export class AppComponent implements OnInit {
         console.log('generate playback');
 
         await this.startContinuousGeneration();
-        this.currentBlob = await this.tensorToAudioBlob(this.currentContinuousTensor, this.sampleRate);
-        await this.startPlayback(this.currentBlob);
+        this.currentBuffer = await this.tensorToAudioBuffer(this.currentContinuousTensor, this.sampleRate);
+        await this.startPlayback(this.currentBuffer);
         this.maxMusicFrame++;
-        this.nextBlob = await this.tensorToAudioBlob(this.nextContinuousTensor, this.sampleRate);
-        await this.startPlayback(this.nextBlob);
+        this.nextBuffer = await this.tensorToAudioBuffer(this.nextContinuousTensor, this.sampleRate);
+        await this.startPlayback(this.nextBuffer);
         this.maxMusicFrame++;
         this.isGenerating = false;
     }
 
-    async startPlayback(blob: Blob): Promise<void> {
-        if (!blob) return;
+    async startPlayback(buffer: AudioBuffer): Promise<void> {
+        if (!buffer) return;
 
         this.isPlaying = true;
 
-        const arrayBuffer = await blob.arrayBuffer();
-        const audioBuffer = await this.audioContext.decodeAudioData(arrayBuffer);
 
         const sourceNode = this.audioContext.createBufferSource();
 
@@ -90,7 +88,7 @@ export class AppComponent implements OnInit {
             console.log('take source node TWO!')
         }
 
-        sourceNode.buffer = audioBuffer;
+        sourceNode.buffer = buffer;
         sourceNode.connect(this.analyser);
         this.analyser.connect(this.audioContext.destination);
 
@@ -106,9 +104,9 @@ export class AppComponent implements OnInit {
             this.isPlaying = false;
             console.log(`generate ${this.maxMusicFrame+1} blob`);
             this.generateNextPart();
-            this.currentBlob = this.nextBlob;
-            this.nextBlob = await this.tensorToAudioBlob(this.nextContinuousTensor, this.sampleRate);
-            await this.startPlayback(this.nextBlob);
+            this.currentBuffer = this.nextBuffer;
+            this.nextBuffer = await this.tensorToAudioBuffer(this.nextContinuousTensor, this.sampleRate);
+            await this.startPlayback(this.nextBuffer);
             this.maxMusicFrame++;
         };
 
@@ -124,7 +122,7 @@ export class AppComponent implements OnInit {
     }
 
     async resumePlayback(): Promise<void> {
-        if (this.isPlaying || !this.currentBlob) return;
+        if (this.isPlaying || !this.currentBuffer) return;
         await this.audioContext.resume();
         this.isPlaying = true;
         this.visualize();
@@ -185,23 +183,20 @@ export class AppComponent implements OnInit {
         this.nextContinuousTensor = predictions;
     }
 
-    async tensorToAudioBlob(tensor: tf.Tensor, sampleRate: number): Promise<Blob> {
+    async tensorToAudioBuffer(tensor: tf.Tensor, sampleRate: number): Promise<AudioBuffer> {
         const audioData = await tensor.data() as Float32Array;
-
-        const audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
-        const numberOfChannels = tensor.shape[1] || 1; // Handle mono or stereo
+        const numberOfChannels = tensor.shape[1] || 1; // Mono oder Stereo
         const frameCount = audioData.length / numberOfChannels;
 
-        this.audioBuffer = audioCtx.createBuffer(numberOfChannels, frameCount, sampleRate);
+        const audioBuffer = this.audioContext.createBuffer(numberOfChannels, frameCount, sampleRate);
 
         for (let channel = 0; channel < numberOfChannels; channel++) {
-            const channelData = this.audioBuffer.getChannelData(channel);
-            for (let i = 0; i < frameCount; i++) {
-                channelData[i] = audioData[i * numberOfChannels + channel];
-            }
+            const channelData = audioBuffer.getChannelData(channel);
+            const offset = channel;
+            channelData.set(audioData.filter((_, i) => i % numberOfChannels === offset));
         }
 
-        return this.audioBufferToWav(this.audioBuffer);
+        return audioBuffer;
     }
 
     audioBufferToWav(buffer: AudioBuffer): Blob {

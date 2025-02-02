@@ -1,23 +1,14 @@
 import {Component, ElementRef, OnInit, ViewChild} from '@angular/core';
 import * as tf from '@tensorflow/tfjs';
-import {FaIconComponent} from "@fortawesome/angular-fontawesome";
-import { faPlay, faPause, faForward } from '@fortawesome/free-solid-svg-icons';
 
 @Component({
     selector: 'app-root',
     standalone: true,
     templateUrl: './app.component.html',
-    imports: [
-        FaIconComponent
-    ],
     styleUrl: './app.component.css'
 })
 export class AppComponent implements OnInit {
     @ViewChild('canvas', { static: true }) canvas!: ElementRef<HTMLCanvasElement>;
-
-    faPlay = faPlay;
-    faPause = faPause;
-    faForward = faForward;
 
     sampleRate: number = 44100;
     isGenerating: boolean = false;

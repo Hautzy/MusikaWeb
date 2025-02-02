@@ -2,8 +2,8 @@
     <h2>MusikaWeb</h2>
     <canvas #canvas width="800" height="300" style="border: 1px solid #000;"></canvas>
     <div>
-        <button (click)="playButtonClicked()" [disabled]="isPlaying"><fa-icon [icon]="faPlay"></fa-icon></button>
-        <button (click)="pausePlayback()" [disabled]="!isPlaying"><fa-icon [icon]="faPause"></fa-icon></button>
-        <button (click)="generatePlayback()"><fa-icon [icon]="faForward"></fa-icon></button>
+        <button (click)="playButtonClicked()" [disabled]="isPlaying">▶</button>
+        <button (click)="pausePlayback()" [disabled]="!isPlaying">⏸</button>
+        <button (click)="generatePlayback()">⏭</button>
     </div>
 </div>

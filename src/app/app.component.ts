@@ -18,8 +18,8 @@ export class AppComponent implements OnInit {
     audioBuffer!: AudioBuffer;
     frameSize = [1049344, 2];
     
-    last_right_anchor: tf.Tensor = tf.ones([1, 128]);
-    noiseg: tf.Tensor = tf.ones([1, 64]);
+    last_right_anchor!: tf.Tensor;
+    noiseg!: tf.Tensor;
     genNoiseModel: any;
     genWaveformModel: any;
     isPlaying: boolean = false;
@@ -159,6 +159,10 @@ export class AppComponent implements OnInit {
     }
 
     async startContinuousGeneration() {
+        this.noiseg = tf.truncatedNormal([1, 64]);
+        console.log('Initialized global noise tensors');
+        this.last_right_anchor = tf.truncatedNormal([1, 128]);
+        console.log('Initialized first anchor noise tensors');
         for (let i = 0; i < 3; i++) {
             const res = this.genNoiseModel.execute([this.noiseg, this.last_right_anchor]) as tf.Tensor[];
             const noise = res[1] as tf.Tensor;

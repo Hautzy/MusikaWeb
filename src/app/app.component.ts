@@ -142,13 +142,13 @@ export class AppComponent implements OnInit {
             this.canvasContext.fillStyle = '#000';
             this.canvasContext.fillRect(0, 0, width, height);
 
-            const barWidth = (width / bufferLength) * 2.5;
+            const barWidth = (width / bufferLength);
             let barHeight;
             let x = 0;
 
             for (let i = 0; i < bufferLength; i++) {
-                barHeight = dataArray[i] / 2;
-                this.canvasContext.fillStyle = `rgb(85, 85, ${barHeight + 100})`;
+                barHeight = dataArray[i];
+                this.canvasContext.fillStyle = `rgb(85, 85, ${barHeight / 2 + 100})`;
                 this.canvasContext.fillRect(x, height - barHeight, barWidth, barHeight);
                 x += barWidth + 1;
             }

@@ -1,11 +1,24 @@
 @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600&display=swap');
 
-h1 {
+h1, summary {
     font-family: 'Poppins', sans-serif;
     font-weight: 400;
     line-height: 1.6;
     margin: 0;
     padding: 0;
+}
+
+summary {
+    font-size: 1.6rem;
+}
+
+details {
+    font-family: 'Poppins', sans-serif;
+    margin: 1em;
+}
+
+a {
+    color: #88f;
 }
 
 canvas {
@@ -39,7 +52,7 @@ button:active {
 }
 
 button:disabled {
-    background-color: #550;
+    background-color: #555;
     color: #777;
     cursor: not-allowed;
     box-shadow: none;

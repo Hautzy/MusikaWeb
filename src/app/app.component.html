@@ -1,9 +1,9 @@
-<div>
-    <h2>MusikaWeb</h2>
-    <canvas #canvas width="800" height="300" style="border: 1px solid #000;"></canvas>
+<div style="width:800px; margin:0 auto">
+    <h1>MusikaWeb</h1>
+    <canvas #canvas width="800" height="300"></canvas>
     <div>
         <button (click)="playButtonClicked()" [disabled]="isPlaying">▶</button>
-        <button (click)="pausePlayback()" [disabled]="!isPlaying">⏸</button>
-        <button (click)="generatePlayback()">⏭</button>
+        <button (click)="pausePlayback()" [disabled]="!isPlaying">||</button>
+        <button (click)="generatePlayback()">▶|</button>
     </div>
 </div>

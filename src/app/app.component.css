@@ -10,6 +10,7 @@ h1, summary {
 
 summary {
     font-size: 1.6rem;
+    cursor: pointer;
 }
 
 details {

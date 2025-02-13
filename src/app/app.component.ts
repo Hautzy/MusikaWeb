@@ -11,6 +11,7 @@ export class AppComponent implements OnInit {
     @ViewChild('canvas', { static: true }) canvas!: ElementRef<HTMLCanvasElement>;
 
     sampleRate: number = 44100;
+    overlap: number = 5728;
     isGenerating: boolean = false;
 
     frameSize = [1049344, 2];
@@ -83,7 +84,7 @@ export class AppComponent implements OnInit {
         sourceNode.connect(this.analyser);
         sourceNode.start(this.nextStartTime);
         console.log(`scheduled playback of ${buffer.duration}s at: ${this.nextStartTime}`);
-        this.nextStartTime += buffer.duration;
+        this.nextStartTime += buffer.duration - this.overlap/this.sampleRate;
         console.log(`next start time: ${this.nextStartTime}`);
 
         sourceNode.onended = async (): Promise<void> => { this.chunkEnded() };

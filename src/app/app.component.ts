@@ -80,6 +80,7 @@ export class AppComponent implements OnInit {
         if(this.nextStartTime < 0.0) {
             this.nextStartTime = this.audioContext.currentTime + 0.1;
         }
+        sourceNode.connect(this.analyser);
         sourceNode.start(this.nextStartTime);
         console.log(`scheduled playback of ${buffer.duration}s at: ${this.nextStartTime}`);
         this.nextStartTime += buffer.duration;
@@ -93,9 +94,6 @@ export class AppComponent implements OnInit {
     async chunkEnded(): Promise<void> {
         this.currentBuffer = this.nextBuffer;
         this.currentSourceNode = this.nextSourceNode;
-        if (this.currentSourceNode != null) {
-            this.currentSourceNode.connect(this.analyser);
-        }
         if (this.isGenerating) {
             return;
         }
